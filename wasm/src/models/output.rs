@@ -1,250 +1,241 @@
-use crate::models::input::{Interval, Network, NetworkConfig, ScheduleEntry, Train};
+use crate::models::input::*;
 use crate::types::*;
-use anyhow::{Context, Result};
+use anyhow::{Result, anyhow};
+use core::f32;
+use multimap::MultiMap;
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-#[derive(Debug, Serialize)]
-pub struct Output {
-    trains: HashMap<TrainID, TrainOutput>,
-    grid_intervals: Vec<GraphLength>,
+#[derive(Serialize)]
+struct CollisionManager {
+    indices: HashMap<(u32, u32), Vec<usize>>,
+    collisions: Vec<Vec<Node>>,
+    unit_size: GraphLength,
+    x_min: GraphLength,
+    x_max: GraphLength,
+    y_min: GraphLength,
+    y_max: GraphLength,
 }
 
-#[derive(Debug, Serialize, Default)]
-struct TrainOutput {
-    nodes: Vec<(Node, Node)>,
+impl CollisionManager {
+    fn new(unit_size: GraphLength) -> Self {
+        Self {
+            indices: HashMap::new(),
+            collisions: Vec::new(),
+            unit_size,
+            x_min: GraphLength::from(f32::INFINITY),
+            x_max: GraphLength::from(f32::NEG_INFINITY),
+            y_min: GraphLength::from(f32::INFINITY),
+            y_max: GraphLength::from(f32::NEG_INFINITY),
+        }
+    }
+    fn update_bounds(&mut self, bounds: (f32, f32, f32, f32)) {
+        let (x_min, x_max, y_min, y_max) = bounds;
+
+        // 更新全局边界
+        self.x_min = GraphLength::from(self.x_min.value().min(x_min));
+        self.x_max = GraphLength::from(self.x_max.value().max(x_max));
+        self.y_min = GraphLength::from(self.y_min.value().min(y_min));
+        self.y_max = GraphLength::from(self.y_max.value().max(y_max));
+    }
+    fn add(&mut self, nodes: &[Node]) {
+        if nodes.is_empty() {
+            return;
+        }
+
+        // 使用迭代器一次性计算边界
+        let bounds = nodes.iter().fold(
+            (
+                f32::INFINITY,
+                f32::NEG_INFINITY,
+                f32::INFINITY,
+                f32::NEG_INFINITY,
+            ),
+            |(x_min, x_max, y_min, y_max), node| {
+                let (x, y) = (node.0.value(), node.1.value());
+                (x_min.min(x), x_max.max(x), y_min.min(y), y_max.max(y))
+            },
+        );
+
+        self.update_bounds(bounds);
+
+        // 计算网格索引
+        let unit_value = self.unit_size.value();
+        let indices = (
+            (bounds.0 / unit_value).floor() as u32,
+            (bounds.1 / unit_value).ceil() as u32,
+            (bounds.2 / unit_value).floor() as u32,
+            (bounds.3 / unit_value).ceil() as u32,
+        );
+
+        let collision_index = self.collisions.len();
+
+        // 批量更新网格索引
+        for x in indices.0..=indices.1 {
+            for y in indices.2..=indices.3 {
+                self.indices
+                    .entry((x, y))
+                    .or_insert_with(Vec::new)
+                    .push(collision_index);
+            }
+        }
+
+        self.collisions.push(nodes.to_vec());
+    }
+}
+
+#[derive(Serialize)]
+struct OutputTrain {
+    edges: Vec<Vec<Node>>,
+    // TODO colors
+}
+
+#[derive(Serialize)]
+pub struct Output {
+    collision: CollisionManager,
+    trains: Vec<OutputTrain>,
 }
 
 impl Output {
-    pub fn new(network: Network, config: NetworkConfig) -> Self {
-        let mut trains = HashMap::new();
-        let mut grid_intervals = Vec::new();
-        let mut current_height = GraphLength::from(0.0);
-
-        for ((beg_stat_id, end_stat_id), reverse) in &config.intervals_to_draw {
-            // ✅ 分离：获取区间数据
-            let interval = Self::get_interval(&network, &beg_stat_id, &end_stat_id)
-                .expect("Interval not found");
-
-            // ✅ 分离：计算绘制长度
-            let draw_length = Self::calculate_draw_length(&interval, &config);
-
-            // ✅ 分离：处理区间内的所有列车
-            Self::process_interval_trains(
-                &interval,
-                &beg_stat_id,
-                &end_stat_id,
-                current_height,
-                draw_length,
-                &network,
-                &config,
-                &mut trains,
-            );
-
-            // ✅ 更新高度
-            current_height += draw_length;
-            grid_intervals.push(draw_length);
+    pub fn new(network: &Network, config: &NetworkConfig) -> Result<Self> {
+        let (stations_draw_info, station_indices, trains_draw_info) = Self::make_station_draw_info(
+            &config.stations_to_draw,
+            &network.stations,
+            &network.intervals,
+            config.position_axis_scale_mode,
+            config.unit_length,
+        )?;
+        let collision = CollisionManager::new(config.unit_length * 2.0);
+        let mut trains: Vec<OutputTrain> = Vec::with_capacity(trains_draw_info.len());
+        for train in trains_draw_info {
+            trains.push(
+                Self::make_train(
+                    &stations_draw_info,
+                    &station_indices,
+                    network.trains.get(&train).unwrap(),
+                )
+                .unwrap(),
+            )
         }
-
-        Output {
-            trains,
-            grid_intervals,
-        }
+        Ok(Self { collision, trains })
     }
-
-    // ✅ 获取区间数据
-    fn get_interval<'a>(
-        network: &'a Network,
-        beg_stat_id: &StationID,
-        end_stat_id: &StationID,
-    ) -> Option<&'a Interval> {
-        network
-            .intervals
-            .get(&(beg_stat_id.clone(), end_stat_id.clone()))
-    }
-
-    // ✅ 计算绘制长度
-    fn calculate_draw_length(interval: &Interval, config: &NetworkConfig) -> GraphLength {
-        interval
-            .length
-            .to_graph_length(config.unit_length, config.position_scale_mode)
-    }
-
-    // ✅ 处理区间内的所有列车
-    fn process_interval_trains(
-        interval: &Interval,
-        beg_stat_id: &StationID,
-        end_stat_id: &StationID,
-        current_height: GraphLength,
-        draw_length: GraphLength,
-        network: &Network,
-        config: &NetworkConfig,
-        trains: &mut HashMap<TrainID, TrainOutput>,
-    ) {
-        for train_id in &interval.trains {
-            // ✅ 确保列车在输出中存在
-            trains
-                .entry(train_id.clone())
-                .or_insert_with(TrainOutput::default);
-
-            let train = network.trains.get(train_id).expect("Train not found");
-
-            // ✅ 分离：处理单个列车的路径
-            Self::process_single_train(
-                train,
-                train_id,
-                beg_stat_id,
-                end_stat_id,
-                current_height,
-                draw_length,
-                config,
-                trains,
-            );
-        }
-    }
-
-    // ✅ 处理单个列车的路径生成
-    fn process_single_train(
+    fn make_train(
+        stations_draw_info: &[(StationID, GraphLength)],
+        station_indices: &MultiMap<StationID, usize>,
         train: &Train,
-        train_id: &TrainID,
-        beg_stat_id: &StationID,
-        end_stat_id: &StationID,
-        current_height: GraphLength,
-        draw_length: GraphLength,
-        config: &NetworkConfig,
-        trains: &mut HashMap<TrainID, TrainOutput>,
-    ) {
-        let schedule_indices = train
-            .indices
-            .get_vec(beg_stat_id)
-            .expect("Station not found in train schedule");
-
-        for &schedule_idx in schedule_indices {
-            // ✅ 分离：处理单个调度点
-            Self::process_schedule_point(
-                train,
-                train_id,
-                schedule_idx,
-                end_stat_id,
-                current_height,
-                draw_length,
-                config,
-                trains,
-            );
+    ) -> Result<OutputTrain> {
+        let schedule = &train.schedule;
+        let schedule_index = &train.schedule_index;
+        // iterate through the schedule and find the first station that is in the stations_draw_info
+        /// a single edge is a vector of nodes
+        type Edge = Vec<Node>;
+        /// an edge group is a set of edges that are related
+        type EdgeGroup = Vec<Edge>;
+        let mut edges: Vec<(EdgeGroup, usize)> = Vec::new();
+        // access through indices, and aligns with edges
+        let mut local_edges: Vec<Edge> = Vec::new();
+        for (entry_idx, entry_info) in schedule.iter().enumerate() {
+            let current_station_id = entry_info.station;
+            let Some(graph_indices) = station_indices.get_vec(&current_station_id) else {
+                // the station is not in the draw info. Check all local groups
+                if local_edges.is_empty() {
+                    continue;
+                }
+                for (local_idx, local_edge) in local_edges.drain(..).enumerate() {
+                    // push the local edges to the corresponding edge group in the edges vector
+                    edges[local_idx].0.push(local_edge);
+                }
+                continue;
+            };
+            for graph_idx in graph_indices {
+                let Some((_, graph_position)) = stations_draw_info.get(*graph_idx) else {
+                    return Err(anyhow!(
+                        "Station {} not found in draw info",
+                        current_station_id
+                    ));
+                };
+            }
+            // sort the elements in edges by the length of the vector
+            // TODO
         }
+        if edges.is_empty() {
+            return Err(anyhow!("No edges found for train {}", train.name));
+        }
+        return Ok(OutputTrain {
+            edges: edges.into_iter().map(|(group, _)| group).flatten().collect()
+        });
     }
+    fn make_station_draw_info(
+        stations_to_draw: &[u64],
+        stations: &HashMap<StationID, Station>,
+        intervals: &HashMap<IntervalID, Interval>,
+        scale_mode: ScaleMode,
+        unit_length: GraphLength,
+    ) -> Result<(
+        Vec<(StationID, GraphLength)>,
+        MultiMap<StationID, usize>,
+        HashSet<TrainID>,
+    )> {
+        if stations_to_draw.is_empty() {
+            return Err(anyhow!("No stations to draw"));
+        }
 
-    // ✅ 处理单个调度点
-    fn process_schedule_point(
-        train: &Train,
-        train_id: &TrainID,
-        schedule_idx: usize,
-        end_stat_id: &StationID,
-        current_height: GraphLength,
-        draw_length: GraphLength,
-        config: &NetworkConfig,
-        trains: &mut HashMap<TrainID, TrainOutput>,
-    ) {
-        let (_, curr_schedule_entry) = train
-            .schedule
-            .get(schedule_idx)
-            .expect("Schedule index out of bounds");
-
-        // ✅ 分离：创建当前站点的节点
-        let station_nodes = Self::create_station_nodes(curr_schedule_entry, current_height, config);
-
-        // 添加站点节点
-        let train_output = trains.get_mut(train_id).unwrap();
-        train_output.nodes.push(station_nodes);
-
-        // ✅ 分离：处理到下一站的连接
-        Self::process_next_station_connection(
-            train,
-            train_id,
-            schedule_idx,
-            end_stat_id,
-            curr_schedule_entry,
-            current_height,
-            draw_length,
-            config,
-            trains,
-        );
-    }
-
-    // ✅ 创建站点节点（到达/出发）
-    fn create_station_nodes(
-        schedule_entry: &ScheduleEntry,
-        current_height: GraphLength,
-        config: &NetworkConfig,
-    ) -> (Node, Node) {
-        let arrival_node = Node(
-            schedule_entry
-                .arrival
-                .to_graph_length(config.unit_length, config.time_scale_mode),
-            current_height,
-        );
-
-        let departure_node = Node(
-            schedule_entry
-                .departure
-                .to_graph_length(config.unit_length, config.time_scale_mode),
-            current_height,
-        );
-
-        (arrival_node, departure_node)
-    }
-
-    // ✅ 处理到下一站的连接
-    fn process_next_station_connection(
-        train: &Train,
-        train_id: &TrainID,
-        schedule_idx: usize,
-        end_stat_id: &StationID,
-        curr_schedule_entry: &ScheduleEntry,
-        current_height: GraphLength,
-        draw_length: GraphLength,
-        config: &NetworkConfig,
-        trains: &mut HashMap<TrainID, TrainOutput>,
-    ) {
-        if let Some((next_station_id, next_schedule_entry)) = train.schedule.get(schedule_idx + 1) {
-            if next_station_id == end_stat_id {
-                // ✅ 分离：创建连接节点
-                let connection_nodes = Self::create_connection_nodes(
-                    curr_schedule_entry,
-                    next_schedule_entry,
-                    current_height,
-                    draw_length,
-                    config,
-                );
-
-                let train_output = trains.get_mut(train_id).unwrap();
-                train_output.nodes.push(connection_nodes);
+        // check if all stations to draw exist
+        for &station_id in stations_to_draw {
+            if !stations.contains_key(&station_id) {
+                return Err(anyhow!("Station {} not found", station_id));
             }
         }
-    }
 
-    // ✅ 创建连接节点（当前出发 -> 下一站到达）
-    fn create_connection_nodes(
-        curr_schedule_entry: &ScheduleEntry,
-        next_schedule_entry: &ScheduleEntry,
-        current_height: GraphLength,
-        draw_length: GraphLength,
-        config: &NetworkConfig,
-    ) -> (Node, Node) {
-        let departure_node = Node(
-            curr_schedule_entry
-                .departure
-                .to_graph_length(config.unit_length, config.time_scale_mode),
-            current_height,
-        );
+        let trains: HashSet<TrainID> = stations_to_draw
+            .iter()
+            .filter_map(|id| stations.get(id))
+            .flat_map(|station| &station.trains)
+            .copied()
+            .collect();
 
-        let arrival_node = Node(
-            next_schedule_entry
-                .arrival
-                .to_graph_length(config.unit_length, config.time_scale_mode),
-            current_height + draw_length,
-        );
+        let mut station_draw_info = Vec::with_capacity(stations_to_draw.len());
+        let mut station_indices = MultiMap::with_capacity(stations_to_draw.len());
+        let mut position: GraphLength = 0.0.into();
 
-        (departure_node, arrival_node)
+        // process the first station
+        let beg = stations_to_draw[0];
+        station_draw_info.push((beg, position));
+        station_indices.insert(beg, 0);
+
+        for (window_idx, win) in stations_to_draw.windows(2).enumerate() {
+            let [beg, end] = win else {
+                continue;
+            };
+            if *beg == *end {
+                return Err(anyhow!("Consecutive stations cannot be the same"));
+            }
+
+            match (
+                intervals.get(&(*beg, *end)).map(|it| it.length),
+                intervals.get(&(*end, *beg)).map(|it| it.length),
+            ) {
+                (Some(len1), Some(len2)) => {
+                    // calculate the average length, then convert it to graph length
+                    position += IntervalLength::new((len1.meters() + len2.meters()) / 2)
+                        .to_graph_length(unit_length, scale_mode);
+                    station_draw_info.push((*end, position));
+                    station_indices.insert(*end, window_idx + 1);
+                }
+                (Some(len), None) | (None, Some(len)) => {
+                    position += len.to_graph_length(unit_length, scale_mode);
+                    station_draw_info.push((*end, position));
+                    station_indices.insert(*end, window_idx + 1);
+                }
+                (None, None) => {
+                    return Err(anyhow!(
+                        "No interval found between stations {} and {}",
+                        beg,
+                        end
+                    ));
+                }
+            }
+        }
+        Ok((station_draw_info, station_indices, trains))
     }
 }

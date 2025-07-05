@@ -2,10 +2,21 @@ use derive_more::{Add, AddAssign, Sub};
 use serde::{Deserialize, Serialize};
 use std::ops;
 
-pub type StationID = String;
-pub type TrainID = String;
+pub type StationID = u64;
+pub type TrainID = u64;
 pub type IntervalID = (StationID, StationID);
 
+pub trait IntervalIDExt {
+    fn reverse(&self) -> Self;
+}
+
+impl IntervalIDExt for IntervalID {
+    fn reverse(&self) -> Self {
+        (self.1, self.0)
+    }
+}
+
+/// Time representation in seconds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Add, Sub, Deserialize)]
 pub struct Time(u32);
 
@@ -41,6 +52,12 @@ impl Time {
 pub struct IntervalLength(u32);
 
 impl IntervalLength {
+    pub fn new(meters: u32) -> Self {
+        IntervalLength(meters)
+    }
+    pub fn meters(&self) -> u32 {
+        self.0
+    }
     pub fn kilometers(&self) -> f32 {
         self.0 as f32 / 1000.0
     }
@@ -51,6 +68,12 @@ impl IntervalLength {
 
 #[derive(Debug, Clone, Copy, PartialEq, Add, Sub, Deserialize, Serialize, AddAssign)]
 pub struct GraphLength(f32);
+
+impl GraphLength {
+    pub fn value(&self) -> f32 {
+        self.0
+    }
+}
 
 impl From<f32> for GraphLength {
     fn from(value: f32) -> Self {
@@ -74,6 +97,14 @@ impl ops::Mul<f32> for GraphLength {
     }
 }
 
+impl ops::Div<GraphLength> for GraphLength {
+    type Output = f32;
+
+    fn div(self, rhs: GraphLength) -> Self::Output {
+        self.0 / rhs.0
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 pub enum ScaleMode {
     Linear,
@@ -81,5 +112,30 @@ pub enum ScaleMode {
     Uniform,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone, Copy)]
 pub struct Node(pub GraphLength, pub GraphLength);
+
+impl Node {
+    /// enters another node, outputs the slope
+    pub fn slope(&self, other: &Node) -> f32 {
+        if self.0 == other.0 {
+            return 0.0; // vertical line
+        }
+        (other.1 - self.1) / (other.0 - self.0)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Hash)]
+pub enum TrainAction {
+    Compose,
+    Decompose,
+    Outbound,
+    Inbound,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+pub enum Direction {
+    Bidirectional,
+    Forward,
+    Backward,
+}

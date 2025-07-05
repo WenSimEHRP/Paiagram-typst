@@ -12,11 +12,11 @@ serde = { version = "1.0.219", features = ["derive"] }
 serde_with = { version = "3.12.0", features = ["macros"] }
 ciborium = "0.2.2"
 serde-big-array = "0.5.1"
-petgraph = "0.8.1"
 typst-wasm-protocol = "0.0.2"
 anyhow = "1.0.98"
 multimap = "0.10.1"
 derive_more = {version = "2.0.1", features = ["full"]}
+indexmap = "2.10.0"
 
 [profile.release]
 lto = true        # Enable link-time optimization
