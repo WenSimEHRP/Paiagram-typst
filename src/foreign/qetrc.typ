@@ -99,21 +99,28 @@
 #let read-qetrc-2(qetrc) = {
   let stations = (:)
   let trains = (:)
+  let intervals = ()
+  let available_stations = qetrc.line.stations.sorted(key: it => it.licheng)
+  for i in range(available_stations.len() - 1) {
+    let beg = available_stations.at(i)
+    let end = available_stations.at(i + 1)
+    stations.insert(beg.zhanming, (:))
+    intervals.push(((beg.zhanming, end.zhanming), (length: int(end.licheng - beg.licheng) * 1000)))
+  }
+  // handle the last station
+  let last_station = available_stations.at(available_stations.len() - 1)
+  stations.insert(last_station.zhanming, (:))
   for train in qetrc.at("trains") {
     let name = train.at("checi").at(0)
-    let departure = train.at("sfz")
-    let terminal = train.at("zdz")
     let schedule = ()
-    for station in train.at("timetable") {
-      let station_name = station.at("zhanming")
-      let time = (
-        to-timestamp(..station.at("ddsj").split(":").map(int)),
-        to-timestamp(..station.at("cfsj").split(":").map(int)),
-      )
+    for entry in train.timetable {
+      let arrival = to-timestamp(..entry.ddsj.split(":").map(int))
+      let departure = to-timestamp(..entry.cfsj.split(":").map(int))
+      let station = entry.zhanming
       schedule.push((
-        station: station_name,
-        time: time,
-        track: 0,
+        station: station,
+        arrival: arrival,
+        departure: departure,
       ))
     }
     trains.insert(
@@ -123,17 +130,5 @@
       ),
     )
   }
-  for station in qetrc.at("line").at("stations") {
-    let name = station.at("zhanming")
-    let tracks = 1
-    let pos = station.at("licheng")
-    stations.insert(
-      name,
-      (
-        tracks: 1,
-        position: float(pos),
-      ),
-    )
-  }
-  (stations, trains)
+  (stations, trains, intervals)
 }

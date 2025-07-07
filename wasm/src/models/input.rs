@@ -181,6 +181,7 @@ pub struct NetworkConfig {
     pub end: Time,
     pub unit_length: GraphLength,
     pub position_axis_scale_mode: ScaleMode,
+    pub time_axis_scale_mode: ScaleMode,
 }
 
 #[derive(Deserialize)]
@@ -190,6 +191,7 @@ struct NetworkConfigHelper {
     end: Time,
     unit_length: GraphLength,
     position_axis_scale_mode: ScaleMode,
+    time_axis_scale_mode: ScaleMode,
 }
 
 impl TryFrom<NetworkConfigHelper> for NetworkConfig {
@@ -244,6 +246,7 @@ impl TryFrom<NetworkConfigHelper> for NetworkConfig {
             end: helper.end,
             unit_length: helper.unit_length,
             position_axis_scale_mode: helper.position_axis_scale_mode,
+            time_axis_scale_mode: helper.time_axis_scale_mode,
         })
     }
 }

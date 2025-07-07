@@ -94,77 +94,10 @@ struct OutputTrain {
 pub struct Output {
     collision: CollisionManager,
     trains: Vec<OutputTrain>,
+    graph_intervals: Vec<GraphLength>,
 }
 
 impl Output {
-    pub fn new(network: &Network, config: &NetworkConfig) -> Result<Self> {
-        let (stations_draw_info, station_indices, trains_draw_info) = Self::make_station_draw_info(
-            &config.stations_to_draw,
-            &network.stations,
-            &network.intervals,
-            config.position_axis_scale_mode,
-            config.unit_length,
-        )?;
-        let collision = CollisionManager::new(config.unit_length * 2.0);
-        let mut trains: Vec<OutputTrain> = Vec::with_capacity(trains_draw_info.len());
-        for train in trains_draw_info {
-            trains.push(
-                Self::make_train(
-                    &stations_draw_info,
-                    &station_indices,
-                    network.trains.get(&train).unwrap(),
-                )
-                .unwrap(),
-            )
-        }
-        Ok(Self { collision, trains })
-    }
-    fn make_train(
-        stations_draw_info: &[(StationID, GraphLength)],
-        station_indices: &MultiMap<StationID, usize>,
-        train: &Train,
-    ) -> Result<OutputTrain> {
-        let schedule = &train.schedule;
-        let schedule_index = &train.schedule_index;
-        // iterate through the schedule and find the first station that is in the stations_draw_info
-        /// a single edge is a vector of nodes
-        type Edge = Vec<Node>;
-        /// an edge group is a set of edges that are related
-        type EdgeGroup = Vec<Edge>;
-        let mut edges: Vec<(EdgeGroup, usize)> = Vec::new();
-        // access through indices, and aligns with edges
-        let mut local_edges: Vec<Edge> = Vec::new();
-        for (entry_idx, entry_info) in schedule.iter().enumerate() {
-            let current_station_id = entry_info.station;
-            let Some(graph_indices) = station_indices.get_vec(&current_station_id) else {
-                // the station is not in the draw info. Check all local groups
-                if local_edges.is_empty() {
-                    continue;
-                }
-                for (local_idx, local_edge) in local_edges.drain(..).enumerate() {
-                    // push the local edges to the corresponding edge group in the edges vector
-                    edges[local_idx].0.push(local_edge);
-                }
-                continue;
-            };
-            for graph_idx in graph_indices {
-                let Some((_, graph_position)) = stations_draw_info.get(*graph_idx) else {
-                    return Err(anyhow!(
-                        "Station {} not found in draw info",
-                        current_station_id
-                    ));
-                };
-            }
-            // sort the elements in edges by the length of the vector
-            // TODO
-        }
-        if edges.is_empty() {
-            return Err(anyhow!("No edges found for train {}", train.name));
-        }
-        return Ok(OutputTrain {
-            edges: edges.into_iter().map(|(group, _)| group).flatten().collect()
-        });
-    }
     fn make_station_draw_info(
         stations_to_draw: &[u64],
         stations: &HashMap<StationID, Station>,
@@ -175,6 +108,7 @@ impl Output {
         Vec<(StationID, GraphLength)>,
         MultiMap<StationID, usize>,
         HashSet<TrainID>,
+        Vec<GraphLength>, // 新增：相对间隔
     )> {
         if stations_to_draw.is_empty() {
             return Err(anyhow!("No stations to draw"));
@@ -196,6 +130,7 @@ impl Output {
 
         let mut station_draw_info = Vec::with_capacity(stations_to_draw.len());
         let mut station_indices = MultiMap::with_capacity(stations_to_draw.len());
+        let mut graph_intervals = Vec::with_capacity(stations_to_draw.len().saturating_sub(1));
         let mut position: GraphLength = 0.0.into();
 
         // process the first station
@@ -211,21 +146,16 @@ impl Output {
                 return Err(anyhow!("Consecutive stations cannot be the same"));
             }
 
-            match (
+            let interval_length = match (
                 intervals.get(&(*beg, *end)).map(|it| it.length),
                 intervals.get(&(*end, *beg)).map(|it| it.length),
             ) {
                 (Some(len1), Some(len2)) => {
-                    // calculate the average length, then convert it to graph length
-                    position += IntervalLength::new((len1.meters() + len2.meters()) / 2)
-                        .to_graph_length(unit_length, scale_mode);
-                    station_draw_info.push((*end, position));
-                    station_indices.insert(*end, window_idx + 1);
+                    IntervalLength::new((len1.meters() + len2.meters()) / 2)
+                        .to_graph_length(unit_length, scale_mode)
                 }
                 (Some(len), None) | (None, Some(len)) => {
-                    position += len.to_graph_length(unit_length, scale_mode);
-                    station_draw_info.push((*end, position));
-                    station_indices.insert(*end, window_idx + 1);
+                    len.to_graph_length(unit_length, scale_mode)
                 }
                 (None, None) => {
                     return Err(anyhow!(
@@ -234,8 +164,120 @@ impl Output {
                         end
                     ));
                 }
-            }
+            };
+
+            // 存储相对间隔
+            graph_intervals.push(interval_length);
+
+            // 更新绝对位置
+            position += interval_length;
+            station_draw_info.push((*end, position));
+            station_indices.insert(*end, window_idx + 1);
         }
-        Ok((station_draw_info, station_indices, trains))
+
+        Ok((station_draw_info, station_indices, trains, graph_intervals))
+    }
+
+    pub fn new(network: &Network, config: &NetworkConfig) -> Result<Self> {
+        let (stations_draw_info, station_indices, trains_draw_info, graph_intervals) =
+            Self::make_station_draw_info(
+                &config.stations_to_draw,
+                &network.stations,
+                &network.intervals,
+                config.position_axis_scale_mode,
+                config.unit_length,
+            )?;
+
+        let collision = CollisionManager::new(config.unit_length * 2.0);
+        let mut trains: Vec<OutputTrain> = Vec::with_capacity(trains_draw_info.len());
+
+        for train in trains_draw_info {
+            trains.push(
+                Self::make_train(
+                    &stations_draw_info,
+                    &station_indices,
+                    network.trains.get(&train).unwrap(),
+                    config.unit_length,
+                    config.time_axis_scale_mode,
+                )
+                .unwrap(),
+            )
+        }
+
+        Ok(Self {
+            collision,
+            trains,
+            graph_intervals,
+        })
+    }
+    fn make_train(
+        stations_draw_info: &[(StationID, GraphLength)],
+        station_indices: &MultiMap<StationID, usize>,
+        train: &Train,
+        unit_length: GraphLength,
+        scale_mode: ScaleMode,
+    ) -> Result<OutputTrain> {
+        let schedule = &train.schedule;
+        let mut edges: Vec<Vec<Node>> = Vec::new();
+        let mut local_edges: Vec<(Vec<Node>, usize)> = Vec::new();
+        for entry in schedule {
+            let Some(graph_idxs) = station_indices.get_vec(&entry.station) else {
+                if local_edges.is_empty() {
+                    continue;
+                }
+                edges.extend(
+                    std::mem::take(&mut local_edges)
+                        .into_iter()
+                        .map(|(nodes, _)| nodes),
+                );
+                continue;
+            };
+            let mut remaining: Vec<(Vec<Node>, usize)> = Vec::new();
+            for graph_idx in graph_idxs {
+                if let Some(pos) = local_edges
+                    .iter()
+                    .position(|(_, last_graph_idx)| graph_idx.abs_diff(*last_graph_idx) == 1)
+                {
+                    let (mut matched_edge, _) = local_edges.remove(pos);
+                    // add nodes to remaining
+                    matched_edge.push(Node(
+                        entry.arrival.to_graph_length(unit_length, scale_mode),
+                        stations_draw_info[*graph_idx].1,
+                    ));
+                    matched_edge.push(Node(
+                        entry.departure.to_graph_length(unit_length, scale_mode),
+                        stations_draw_info[*graph_idx].1,
+                    ));
+                    remaining.push((matched_edge, *graph_idx));
+                } else {
+                    // start a new edge, if not found
+                    remaining.push((
+                        vec![
+                            Node(
+                                entry.arrival.to_graph_length(unit_length, scale_mode),
+                                stations_draw_info[*graph_idx].1,
+                            ),
+                            Node(
+                                entry.departure.to_graph_length(unit_length, scale_mode),
+                                stations_draw_info[*graph_idx].1,
+                            ),
+                        ],
+                        *graph_idx,
+                    ));
+                }
+            }
+            if !local_edges.is_empty() {
+                edges.extend(
+                    std::mem::take(&mut local_edges)
+                        .into_iter()
+                        .map(|(nodes, _)| nodes),
+                );
+            }
+            // update local_edges with remaining
+            local_edges = remaining;
+        }
+        // handle the remaining local edges
+        edges.extend(local_edges.into_iter().map(|(nodes, _)| nodes));
+        Ok(OutputTrain { edges })
     }
 }
