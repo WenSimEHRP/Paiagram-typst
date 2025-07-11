@@ -108,7 +108,7 @@ impl CollisionManager {
             for j in y_idx_min..=y_idx_max {
                 self.indices
                     .entry((i, j))
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(idx);
             }
         };
@@ -119,7 +119,7 @@ impl CollisionManager {
     /// Ok(None) -> No collisions
     /// Err(any) -> input is not valid, or the iteration took too long
     /// Ok(Some(f64)) -> The length to move given the angle to remove the collision
-    fn collides_with(&self, collision: &[Node], angle: f64) -> Result<Option<GraphLength>> {
+    fn check_collision(&self, collision: &[Node], angle: f64) -> Result<Option<GraphLength>> {
         // Validate input
         if collision.len() < 3 {
             return Err(anyhow::anyhow!("Polygon must have at least 3 vertices"));
@@ -151,8 +151,8 @@ impl CollisionManager {
         }
 
         // Movement direction vector
-        let move_x = angle.cos();
-        let move_y = angle.sin();
+        let movement_x = angle.cos();
+        let movement_y = angle.sin();
 
         let mut max_required_distance: f64 = 0.0;
 
@@ -163,9 +163,9 @@ impl CollisionManager {
                     // We found a collision, calculate required movement distance
 
                     // Calculate the dot product of MTV with movement direction
-                    let mtv_dot_move = mtv_x * move_x + mtv_y * move_y;
+                    let mtv_dot_movement = mtv_x * movement_x + mtv_y * movement_y;
 
-                    if mtv_dot_move.abs() < f64::EPSILON {
+                    if mtv_dot_movement.abs() < f64::EPSILON {
                         // Movement direction is perpendicular to MTV
                         // This can happen when:
                         // 1. Label tries to move vertically but collision requires horizontal movement
@@ -183,7 +183,7 @@ impl CollisionManager {
                     }
 
                     // Calculate required distance to resolve collision (always positive)
-                    let required_distance = overlap / mtv_dot_move.abs();
+                    let required_distance = overlap / mtv_dot_movement.abs();
 
                     max_required_distance = max_required_distance.max(required_distance);
                 }
@@ -233,7 +233,7 @@ impl CollisionManager {
         }
 
         // Check for collision at current position
-        match self.collides_with(&collision, angle)? {
+        match self.check_collision(&collision, angle)? {
             None => {
                 // No collision, we're done
                 Ok((self.add_collision(collision).unwrap(), accumulated_distance))
@@ -247,13 +247,13 @@ impl CollisionManager {
                 let new_total_distance = accumulated_distance + required_distance;
 
                 // Calculate new polygon position after movement
-                let move_x = angle.cos() * f64::from(required_distance);
-                let move_y = angle.sin() * f64::from(required_distance);
+                let movement_x = angle.cos() * f64::from(required_distance);
+                let movement_y = angle.sin() * f64::from(required_distance);
 
                 let moved_collision: Vec<Node> = collision.iter()
                     .map(|node| Node(
-                        node.0 + GraphLength::from(move_x),
-                        node.1 + GraphLength::from(move_y)
+                        node.0 + GraphLength::from(movement_x),
+                        node.1 + GraphLength::from(movement_y)
                     ))
                     .collect();
 
@@ -315,9 +315,9 @@ fn calculate_overlap(min1: f64, max1: f64, min2: f64, max2: f64) -> f64 {
         0.0 // No overlap
     } else {
         // Calculate overlap amount
-        let overlap1 = max1 - min2;
-        let overlap2 = max2 - min1;
-        overlap1.min(overlap2)
+        let overlap_direction1 = max1 - min2;
+        let overlap_direction2 = max2 - min1;
+        overlap_direction1.min(overlap_direction2)
     }
 }
 
@@ -386,17 +386,17 @@ fn sat_collision_test_with_mtv(polygon1: &[Node], polygon2: &[Node]) -> Option<(
 ///
 /// # Arguments
 /// * `polygon` - The polygon vertices to rotate (consumed)
-/// * `center` - The center point to rotate around
+/// * `center_point` - The center point to rotate around
 /// * `angle` - The rotation angle in radians (positive = counterclockwise)
 ///
 /// # Returns
 /// A new vector containing the rotated vertices
-pub fn rotate(polygon: Vec<Node>, center: Node, angle: f64) -> Vec<Node> {
+pub fn rotate_polygon(polygon: Vec<Node>, center_point: Node, angle: f64) -> Vec<Node> {
     let cos_angle = angle.cos();
     let sin_angle = angle.sin();
 
-    let center_x = f64::from(center.0);
-    let center_y = f64::from(center.1);
+    let center_x = f64::from(center_point.0);
+    let center_y = f64::from(center_point.1);
 
     polygon.into_iter()
         .map(|node| {

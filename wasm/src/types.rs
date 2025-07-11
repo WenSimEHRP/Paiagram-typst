@@ -21,28 +21,28 @@ impl IntervalIDExt for IntervalID {
 pub struct Time(u32);
 
 impl Time {
-    pub fn new(seconds: u32) -> Self {
-        Time(seconds)
-    }
+    // pub fn new(seconds: u32) -> Self {
+    //     Time(seconds)
+    // }
     pub fn seconds(&self) -> u32 {
         self.0
     }
-    pub fn second(&self) -> u32 {
-        self.0 % 60
-    }
-    pub fn minutes(&self) -> u32 {
-        self.0 / 60
-    }
-    pub fn minute(&self) -> u32 {
-        (self.0 / 60) % 60
-    }
-    pub fn hours(&self) -> u32 {
-        self.0 / 3600
-    }
-    pub fn hour(&self) -> u32 {
-        (self.0 / 3600) % 24
-    }
-    pub fn to_graph_length(&self, unit_length: GraphLength, scale_mode: ScaleMode) -> GraphLength {
+    // pub fn second(&self) -> u32 {
+    //     self.0 % 60
+    // }
+    // pub fn minutes(&self) -> u32 {
+    //     self.0 / 60
+    // }
+    // pub fn minute(&self) -> u32 {
+    //     (self.0 / 60) % 60
+    // }
+    // pub fn hours(&self) -> u32 {
+    //     self.0 / 3600
+    // }
+    // pub fn hour(&self) -> u32 {
+    //     (self.0 / 3600) % 24
+    // }
+    pub fn to_graph_length(self, unit_length: GraphLength) -> GraphLength {
         let hours = self.0 as f64 / 3600.0;
         unit_length * hours
     }
@@ -61,7 +61,7 @@ impl IntervalLength {
     pub fn kilometers(&self) -> f64 {
         self.0 as f64 / 1000.0
     }
-    pub fn to_graph_length(&self, unit_length: GraphLength, scale_mode: ScaleMode) -> GraphLength {
+    pub fn to_graph_length(self, unit_length: GraphLength, scale_mode: ScaleMode) -> GraphLength {
         let length = match scale_mode {
             ScaleMode::Linear => self.kilometers(),
             ScaleMode::Logarithmic => self.kilometers().ln().max(1.0),
@@ -125,16 +125,6 @@ pub enum ScaleMode {
 
 #[derive(Debug, Serialize, Clone, Copy, Deserialize)]
 pub struct Node(pub GraphLength, pub GraphLength);
-
-impl Node {
-    /// enters another node, outputs the slope
-    pub fn slope(&self, other: &Node) -> f64 {
-        if self.0 == other.0 {
-            return 0.0; // vertical line
-        }
-        (other.1 - self.1) / (other.0 - self.0)
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Hash)]
 pub enum TrainAction {

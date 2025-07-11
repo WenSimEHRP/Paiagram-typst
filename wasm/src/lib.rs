@@ -5,38 +5,38 @@ use typst_wasm_protocol::wasm_export;
 mod input;
 mod output;
 mod types;
-mod coillision;
+mod collision;
 use input::{Network, NetworkConfig};
 use output::Output;
 
 #[wasm_export]
-fn process(network: &[u8], config: &[u8]) -> Result<Vec<u8>, String> {
-    process_internal(network, config).map_err(format_error_chain)
+fn process(network_data: &[u8], config_data: &[u8]) -> Result<Vec<u8>, String> {
+    process_internal(network_data, config_data).map_err(format_error_chain)
 }
 
-fn process_internal(network: &[u8], config: &[u8]) -> anyhow::Result<Vec<u8>> {
-    let network: Network = from_reader(network).context("Failed to deserialize network")?;
+fn process_internal(network_data: &[u8], config_data: &[u8]) -> anyhow::Result<Vec<u8>> {
+    let network: Network = from_reader(network_data).context("Failed to deserialize network")?;
 
-    let config: NetworkConfig = from_reader(config).context("Failed to deserialize config")?;
+    let config: NetworkConfig = from_reader(config_data).context("Failed to deserialize config")?;
 
     let mut output = Output::new(config);
     output.populate(network)
         .context("Failed to populate output from network and config")?;
 
-    let mut result = Vec::new();
-    into_writer(&output, &mut result).context("Failed to serialize output")?;
+    let mut serialized_result = Vec::new();
+    into_writer(&output, &mut serialized_result).context("Failed to serialize output")?;
 
-    Ok(result)
+    Ok(serialized_result)
 }
 
 fn format_error_chain(error: anyhow::Error) -> String {
-    let mut result = format!("Error: {}", error);
-    let mut current = error.source();
-    let mut level = 1;
-    while let Some(source) = current {
-        result.push_str(&format!("\n  {}. Caused by: {}", level, source));
-        current = source.source();
-        level += 1;
+    let mut formatted_result = format!("Error: {error}");
+    let mut current_error = error.source();
+    let mut error_level = 1;
+    while let Some(source_error) = current_error {
+        formatted_result.push_str(&format!("\n  {error_level}. Caused by: {source_error}"));
+        current_error = source_error.source();
+        error_level += 1;
     }
-    result
+    formatted_result
 }

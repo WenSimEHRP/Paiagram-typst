@@ -1,6 +1,5 @@
 use crate::types::*;
 use anyhow::Result;
-use multimap::MultiMap;
 use serde::Deserialize;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
@@ -36,88 +35,88 @@ impl TryFrom<NetworkHelper> for Network {
         let mut trains: HashMap<TrainID, Train> = HashMap::with_capacity(helper.trains.len());
         let mut intervals: HashMap<IntervalID, Interval> =
             HashMap::with_capacity(helper.intervals.len());
-        for (name, helper) in helper.stations {
-            let id = hash_id(&name);
+        for (station_name, station_helper) in helper.stations {
+            let station_id = hash_id(&station_name);
             let station = Station {
-                label_size: helper.label_size,
-                milestones: helper.milestones,
-                tracks: helper.tracks.unwrap_or(1),
-                name,
+                label_size: station_helper.label_size,
+                // milestones: station_helper.milestones,
+                // tracks: station_helper.tracks.unwrap_or(1),
+                // name: station_name,
                 intervals: HashSet::new(),
                 trains: HashSet::new(),
             };
-            stations.insert(id, station);
+            stations.insert(station_id, station);
         }
-        for ((from, to), interval) in helper.intervals {
-            let from_id = hash_id(&from);
-            let to_id = hash_id(&to);
-            let id = (from_id, to_id);
+        for ((from_station, to_station), interval_helper) in helper.intervals {
+            let from_station_id = hash_id(&from_station);
+            let to_station_id = hash_id(&to_station);
+            let interval_id = (from_station_id, to_station_id);
             let new_interval = Interval {
-                name: interval.name,
-                length: interval.length,
+                // name: interval_helper.name,
+                length: interval_helper.length,
             };
-            match interval.bidirectional {
+            match interval_helper.bidirectional {
                 Some(true) | None => {
-                    if intervals.contains_key(&id.reverse()) {
+                    if intervals.contains_key(&interval_id.reverse()) {
                         return Err(anyhow::anyhow!(
                             "Interval from '{}' to '{}' already exists",
-                            to,
-                            from
+                            to_station,
+                            from_station
                         ));
                     }
-                    intervals.insert(id.reverse(), new_interval.clone());
-                    if intervals.contains_key(&id) {
+                    intervals.insert(interval_id.reverse(), new_interval.clone());
+                    if intervals.contains_key(&interval_id) {
                         return Err(anyhow::anyhow!(
                             "Interval from '{}' to '{}' already exists",
-                            from,
-                            to
+                            from_station,
+                            to_station
                         ));
                     }
-                    intervals.insert(id, new_interval);
+                    intervals.insert(interval_id, new_interval);
                 }
                 _ => {
-                    if intervals.contains_key(&id) {
+                    if intervals.contains_key(&interval_id) {
                         return Err(anyhow::anyhow!(
                             "Interval from '{}' to '{}' already exists",
-                            from,
-                            to
+                            from_station,
+                            to_station
                         ));
                     }
-                    intervals.insert(id, new_interval);
+                    intervals.insert(interval_id, new_interval);
                 }
             }
-            if let Some(from_station) = stations.get_mut(&from_id) {
-                from_station.intervals.insert(id);
+            if let Some(from_station_obj) = stations.get_mut(&from_station_id) {
+                from_station_obj.intervals.insert(interval_id);
             }
-            if let Some(to_station) = stations.get_mut(&to_id) {
-                to_station.intervals.insert(id);
+            if let Some(to_station_obj) = stations.get_mut(&to_station_id) {
+                to_station_obj.intervals.insert(interval_id);
             }
         }
-        for (name, helper) in helper.trains {
-            let id = hash_id(&name);
-            let label_size = helper.label_size;
-            let mut schedule = Vec::with_capacity(helper.schedule.len());
-            let mut schedule_index: MultiMap<StationID, usize> = MultiMap::new();
-            for (idx, entry) in helper.schedule.into_iter().enumerate() {
-                let station_id = hash_id(&entry.station);
-                schedule_index.insert(station_id, idx);
+        for (train_name, train_helper) in helper.trains {
+            let train_id = hash_id(&train_name);
+            let label_size = train_helper.label_size;
+            let mut schedule = Vec::with_capacity(train_helper.schedule.len());
+            // let mut schedule_index: MultiMap<StationID, usize> = MultiMap::new();
+            for schedule_entry in train_helper.schedule.into_iter() {
+                let station_id = hash_id(&schedule_entry.station);
+                // schedule_index.insert(station_id, entry_idx);
                 if let Some(station) = stations.get_mut(&station_id) {
-                    station.trains.insert(id);
+                    station.trains.insert(train_id);
                 }
                 schedule.push(ScheduleEntry {
-                    arrival: entry.arrival,
-                    departure: entry.departure,
+                    arrival: schedule_entry.arrival,
+                    departure: schedule_entry.departure,
                     station: station_id,
-                    actions: entry.actions.unwrap_or_default(),
+                    // actions: schedule_entry.actions.unwrap_or_default(),
                 });
             }
             trains.insert(
-                id,
+                train_id,
                 Train {
-                    name,
+                    // name: train_name,
                     label_size,
                     schedule,
-                    schedule_index,
+                    // schedule_index,
                 },
             );
         }
@@ -130,9 +129,9 @@ impl TryFrom<NetworkHelper> for Network {
 }
 
 pub struct Station {
-    pub milestones: Option<HashMap<String, IntervalLength>>,
-    pub tracks: u16,
-    pub name: String,
+    // pub milestones: Option<HashMap<String, IntervalLength>>,
+    // pub tracks: u16,
+    // pub name: String,
     // those fields are completed afterwards
     pub intervals: HashSet<IntervalID>,
     pub trains: HashSet<TrainID>,
@@ -147,10 +146,10 @@ struct StationHelper {
 }
 
 pub struct Train {
-    pub name: String,
+    // pub name: String,
     pub label_size: (GraphLength, GraphLength),
     pub schedule: Vec<ScheduleEntry>,
-    pub schedule_index: MultiMap<StationID, usize>,
+    // pub schedule_index: MultiMap<StationID, usize>,
 }
 
 #[derive(Deserialize)]
@@ -163,7 +162,7 @@ pub struct ScheduleEntry {
     pub arrival: Time,
     pub departure: Time,
     pub station: StationID,
-    pub actions: HashSet<TrainAction>,
+    // pub actions: HashSet<TrainAction>,
 }
 
 #[derive(Deserialize)]
@@ -171,12 +170,12 @@ struct ScheduleEntryHelper {
     arrival: Time,
     departure: Time,
     station: String,
-    actions: Option<HashSet<TrainAction>>,
+    // actions: Option<HashSet<TrainAction>>,
 }
 
 #[derive(Clone)]
 pub struct Interval {
-    pub name: Option<String>,
+    // pub name: Option<String>,
     pub length: IntervalLength,
 }
 
@@ -195,7 +194,7 @@ pub struct NetworkConfig {
     pub end: Time,
     pub unit_length: GraphLength,
     pub position_axis_scale_mode: ScaleMode,
-    pub time_axis_scale_mode: ScaleMode,
+    // pub time_axis_scale_mode: ScaleMode,
     pub position_axis_scale: f64,
     pub time_axis_scale: f64,
     pub label_angle: f64,
@@ -208,7 +207,7 @@ struct NetworkConfigHelper {
     end: Time,
     unit_length: GraphLength,
     position_axis_scale_mode: ScaleMode,
-    time_axis_scale_mode: ScaleMode,
+    // time_axis_scale_mode: ScaleMode,
     position_axis_scale: f64,
     time_axis_scale: f64,
     label_angle: f64,
@@ -226,26 +225,26 @@ impl TryFrom<NetworkConfigHelper> for NetworkConfig {
         let stations_to_draw: Vec<StationID> = helper
             .stations_to_draw
             .iter()
-            .map(|name| hash_id(name))
+            .map(|station_name| hash_id(station_name))
             .collect();
 
-        for (i, window) in helper.stations_to_draw.windows(3).enumerate() {
-            let [_, beg_name, end_name] = window else {
+        for (window_idx, station_window) in helper.stations_to_draw.windows(3).enumerate() {
+            let [_, current_station_name, next_station_name] = station_window else {
                 continue;
             };
-            let prev_id = stations_to_draw[i];
-            let beg_id = stations_to_draw[i + 1];
-            let end_id = stations_to_draw[i + 2];
-            if beg_id == end_id {
+            let previous_station_id = stations_to_draw[window_idx];
+            let current_station_id = stations_to_draw[window_idx + 1];
+            let next_station_id = stations_to_draw[window_idx + 2];
+            if current_station_id == next_station_id {
                 return Err(anyhow::anyhow!(
                     "Two consecutive stations cannot be the same: '{}'",
-                    beg_name
+                    current_station_name
                 ));
             }
-            if prev_id == end_id {
+            if previous_station_id == next_station_id {
                 return Err(anyhow::anyhow!(
                     "The station '{}' cannot be both the beginning of the previous interval and the end of the next one",
-                    end_name
+                    next_station_name
                 ));
             }
         }
@@ -262,7 +261,7 @@ impl TryFrom<NetworkConfigHelper> for NetworkConfig {
             end: helper.end,
             unit_length: helper.unit_length,
             position_axis_scale_mode: helper.position_axis_scale_mode,
-            time_axis_scale_mode: helper.time_axis_scale_mode,
+            // time_axis_scale_mode: helper.time_axis_scale_mode,
             position_axis_scale: helper.position_axis_scale,
             time_axis_scale: helper.time_axis_scale,
             label_angle: helper.label_angle,
