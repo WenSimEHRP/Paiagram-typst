@@ -100,8 +100,9 @@
         unit_length: 1cm / 1pt,
         position_axis_scale_mode: "Logarithmic",
         time_axis_scale_mode: "Linear",
-        position_axis_scale: 0.4,
+        position_axis_scale: 1.0,
         time_axis_scale: 4.0,
+        label_angle: 30deg.rad(),
       )),
     ),
   )

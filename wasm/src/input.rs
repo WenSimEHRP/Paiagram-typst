@@ -198,6 +198,7 @@ pub struct NetworkConfig {
     pub time_axis_scale_mode: ScaleMode,
     pub position_axis_scale: f64,
     pub time_axis_scale: f64,
+    pub label_angle: f64,
 }
 
 #[derive(Deserialize)]
@@ -210,6 +211,7 @@ struct NetworkConfigHelper {
     time_axis_scale_mode: ScaleMode,
     position_axis_scale: f64,
     time_axis_scale: f64,
+    label_angle: f64,
 }
 
 impl TryFrom<NetworkConfigHelper> for NetworkConfig {
@@ -227,36 +229,23 @@ impl TryFrom<NetworkConfigHelper> for NetworkConfig {
             .map(|name| hash_id(name))
             .collect();
 
-        let mut intervals: HashSet<IntervalID> =
-            HashSet::with_capacity(helper.stations_to_draw.len() - 1);
-
-        for (i, window) in helper.stations_to_draw.windows(2).enumerate() {
-            let [prev_name, curr_name] = window else {
+        for (i, window) in helper.stations_to_draw.windows(3).enumerate() {
+            let [_, beg_name, end_name] = window else {
                 continue;
             };
-
             let prev_id = stations_to_draw[i];
-            let curr_id = stations_to_draw[i + 1];
-
-            if prev_id == curr_id {
+            let beg_id = stations_to_draw[i + 1];
+            let end_id = stations_to_draw[i + 2];
+            if beg_id == end_id {
                 return Err(anyhow::anyhow!(
-                    "Consecutive stations cannot be the same: {}",
-                    curr_name
+                    "Two consecutive stations cannot be the same: '{}'",
+                    beg_name
                 ));
             }
-
-            if !intervals.insert((prev_id, curr_id)) {
+            if prev_id == end_id {
                 return Err(anyhow::anyhow!(
-                    "Duplicate interval from '{}' to '{}'",
-                    prev_name,
-                    curr_name
-                ));
-            }
-            if !intervals.insert((curr_id, prev_id)) {
-                return Err(anyhow::anyhow!(
-                    "Duplicate interval from '{}' to '{}'",
-                    curr_name,
-                    prev_name
+                    "The station '{}' cannot be both the beginning of the previous interval and the end of the next one",
+                    end_name
                 ));
             }
         }
@@ -276,6 +265,7 @@ impl TryFrom<NetworkConfigHelper> for NetworkConfig {
             time_axis_scale_mode: helper.time_axis_scale_mode,
             position_axis_scale: helper.position_axis_scale,
             time_axis_scale: helper.time_axis_scale,
+            label_angle: helper.label_angle,
         })
     }
 }

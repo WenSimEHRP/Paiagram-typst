@@ -77,9 +77,9 @@ impl CollisionManager {
             self.y_max = y_max;
         }
     }
-    pub fn add_collision(&mut self, collision: Vec<Node>) {
+    pub fn add_collision(&mut self, collision: Vec<Node>) -> Result<&[Node]> {
         let Some((x_min, x_max, y_min, y_max)) = aabb(&collision) else {
-            return;
+            return Err(anyhow::anyhow!("Collision must have at least 3 vertices"));
         };
 
         self.update_x_min(x_min);
@@ -111,7 +111,9 @@ impl CollisionManager {
                     .or_insert_with(Vec::new)
                     .push(idx);
             }
-        }
+        };
+
+        Ok(self.collisions.last().unwrap().as_slice())
     }
     /// reads a collision, compares it with the existing collisions, and provide a length that will remove the collision
     /// Ok(None) -> No collisions
@@ -164,8 +166,20 @@ impl CollisionManager {
                     let mtv_dot_move = mtv_x * move_x + mtv_y * move_y;
 
                     if mtv_dot_move.abs() < f64::EPSILON {
-                        // Movement direction is perpendicular to MTV, infinite distance needed
-                        return Err(anyhow::anyhow!("Cannot resolve collision: movement direction is perpendicular to collision normal"));
+                        // Movement direction is perpendicular to MTV
+                        // This can happen when:
+                        // 1. Label tries to move vertically but collision requires horizontal movement
+                        // 2. Two rectangles are side-by-side but we're trying to move up/down
+                        // 3. Polygon shapes create complex collision normals
+
+                        // Instead of erroring, try alternative strategies:
+                        // Option 1: Move along MTV direction instead
+                        let required_distance = overlap;
+                        max_required_distance = max_required_distance.max(required_distance);
+
+                        // Option 2: Could also try a slight angle adjustment
+                        // But for now, we'll allow MTV-based movement
+                        continue;
                     }
 
                     // Calculate required distance to resolve collision (always positive)
@@ -194,42 +208,40 @@ impl CollisionManager {
     /// # Returns
     /// * `Ok(GraphLength)` - Total distance needed to resolve all collisions
     /// * `Err(_)` - Input invalid, too many iterations, or unresolvable collision
-    pub fn resolve_collisions_recursive(&mut self, collision: &[Node], angle: f64, max_iterations: u32) -> Result<GraphLength> {
+    pub fn resolve_collisions_recursive(&mut self, collision: Vec<Node>, angle: f64, max_iterations: u32) -> Result<(&[Node], GraphLength)> {
         self.resolve_collisions_recursive_impl(collision, angle, max_iterations, 0, GraphLength::from(0.0))
     }
 
     /// Convenience function to resolve collisions with a default maximum of 100 iterations.
     /// This is the recommended function to use in most cases.
-    pub fn resolve_collisions(&mut self, collision: &[Node], angle: f64) -> Result<GraphLength> {
-        self.resolve_collisions_recursive(collision, angle, 100)
+    pub fn resolve_collisions(&mut self, collision: Vec<Node>, angle: f64) -> Result<(&[Node], GraphLength)> {
+        self.resolve_collisions_recursive(collision, angle, 255)
     }
 
     /// Internal recursive implementation
     fn resolve_collisions_recursive_impl(
         &mut self,
-        collision: &[Node],
+        collision: Vec<Node>,
         angle: f64,
         max_iterations: u32,
         current_iteration: u32,
         accumulated_distance: GraphLength
-    ) -> Result<GraphLength> {
+    ) -> Result<(&[Node], GraphLength)> {
         // Check iteration limit
         if current_iteration >= max_iterations {
             return Err(anyhow::anyhow!("Maximum iterations ({}) reached while resolving collisions", max_iterations));
         }
 
         // Check for collision at current position
-        match self.collides_with(collision, angle)? {
+        match self.collides_with(&collision, angle)? {
             None => {
                 // No collision, we're done
-                self.add_collision(collision.to_vec()); // Register the final position
-                Ok(accumulated_distance)
+                Ok((self.add_collision(collision).unwrap(), accumulated_distance))
             },
             Some(required_distance) => {
-                // if the required distance to move is smaller than 1pt, then consider it resolved
-                if f64::from(required_distance) < 1.0 {
-                    self.add_collision(collision.to_vec());
-                    return Ok(accumulated_distance);
+                if required_distance.value() <= 0.1 {
+                    // No movement needed, but still a collision
+                    return Ok((self.add_collision(collision).unwrap(), accumulated_distance))
                 }
                 // Found collision, move and check again
                 let new_total_distance = accumulated_distance + required_distance;
@@ -247,7 +259,7 @@ impl CollisionManager {
 
                 // Recursively check the moved polygon
                 self.resolve_collisions_recursive_impl(
-                    &moved_collision,
+                    moved_collision,
                     angle,
                     max_iterations,
                     current_iteration + 1,

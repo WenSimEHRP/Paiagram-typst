@@ -19,8 +19,9 @@ fn process_internal(network: &[u8], config: &[u8]) -> anyhow::Result<Vec<u8>> {
 
     let config: NetworkConfig = from_reader(config).context("Failed to deserialize config")?;
 
-    let output = Output::new(network, &config)
-        .context("Failed to create output from network and config")?;
+    let mut output = Output::new(config);
+    output.populate(network)
+        .context("Failed to populate output from network and config")?;
 
     let mut result = Vec::new();
     into_writer(&output, &mut result).context("Failed to serialize output")?;

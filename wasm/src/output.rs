@@ -6,6 +6,18 @@ use multimap::MultiMap;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 
+enum LabelDirection {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+enum LabelPosition {
+    Beg(LabelDirection),
+    End(LabelDirection),
+}
+
 #[derive(Serialize)]
 struct OutputTrain {
     edges: Vec<Vec<Node>>,
@@ -17,60 +29,121 @@ pub struct Output {
     collision_manager: CollisionManager,
     trains: Vec<OutputTrain>,
     graph_intervals: Vec<GraphLength>,
+    #[serde(skip)]
+    stations_draw_info: Vec<(StationID, GraphLength)>,
+    #[serde(skip)]
+    station_indices: MultiMap<StationID, usize>,
+    #[serde(skip)]
+    config: NetworkConfig,
 }
 
 impl Output {
+    pub fn new(config: NetworkConfig) -> Self {
+        let collision_manager = CollisionManager::new(config.unit_length);
+
+        Self {
+            collision_manager,
+            trains: Vec::new(),
+            graph_intervals: Vec::new(),
+            stations_draw_info: Vec::new(),
+            station_indices: MultiMap::new(),
+            config: config,
+        }
+    }
+
+    pub fn populate(&mut self, network: Network) -> Result<()> {
+        let trains_draw_info =
+            self.make_station_draw_info(&network.stations, &network.intervals)?;
+
+        let time_unit_length = self.config.unit_length * self.config.time_axis_scale;
+        let label_beg = self
+            .config
+            .beg
+            .to_graph_length(time_unit_length, self.config.time_axis_scale_mode);
+
+        self.collision_manager.update_x_min(GraphLength::from(
+            self.config
+                .beg
+                .to_graph_length(time_unit_length, self.config.time_axis_scale_mode)
+                .value(),
+        ));
+        self.collision_manager.update_x_max(GraphLength::from(
+            self.config
+                .end
+                .to_graph_length(time_unit_length, self.config.time_axis_scale_mode)
+                .value(),
+        ));
+        self.collision_manager.update_y_min(GraphLength::from(
+            self.stations_draw_info
+                .first()
+                .map_or(0.0, |(_, y)| y.value()),
+        ));
+        self.collision_manager.update_y_max(GraphLength::from(
+            self.stations_draw_info
+                .last()
+                .map_or(0.0, |(_, y)| y.value()),
+        ));
+
+        self.trains = Vec::with_capacity(trains_draw_info.len());
+        for train in trains_draw_info {
+            let output_train = self.make_train(network.trains.get(&train).unwrap())?;
+            self.trains.push(output_train);
+        }
+
+        Ok(())
+    }
+
     fn make_station_draw_info(
-        stations_to_draw: &[u64],
+        &mut self,
         stations: &HashMap<StationID, Station>,
         intervals: &HashMap<IntervalID, Interval>,
-        scale_mode: ScaleMode,
-        unit_length: GraphLength,
-        label_beg: GraphLength,
-        collision_manager: &mut CollisionManager,
-    ) -> Result<(
-        Vec<(StationID, GraphLength)>,
-        MultiMap<StationID, usize>,
-        HashSet<TrainID>,
-        Vec<GraphLength>,
-    )> {
-        if stations_to_draw.is_empty() {
+    ) -> Result<HashSet<TrainID>> {
+        if self.config.stations_to_draw.is_empty() {
             return Err(anyhow!("No stations to draw"));
         }
 
         // check if all stations to draw exist
-        for &station_id in stations_to_draw {
+        for &station_id in &self.config.stations_to_draw {
             if !stations.contains_key(&station_id) {
                 return Err(anyhow!("Station {} not found", station_id));
             }
         }
 
-        let trains: HashSet<TrainID> = stations_to_draw
+        let trains: HashSet<TrainID> = self
+            .config
+            .stations_to_draw
             .iter()
             .filter_map(|id| stations.get(id))
             .flat_map(|station| &station.trains)
             .copied()
             .collect();
 
-        let mut station_draw_info = Vec::with_capacity(stations_to_draw.len());
-        let mut station_indices = MultiMap::with_capacity(stations_to_draw.len());
-        let mut graph_intervals = Vec::with_capacity(stations_to_draw.len().saturating_sub(1));
+        self.stations_draw_info = Vec::with_capacity(self.config.stations_to_draw.len());
+        self.station_indices = MultiMap::with_capacity(self.config.stations_to_draw.len());
+        self.graph_intervals =
+            Vec::with_capacity(self.config.stations_to_draw.len().saturating_sub(1));
         let mut position: GraphLength = 0.0.into();
 
+        let unit_length = self.config.unit_length * self.config.position_axis_scale;
+        let label_beg = self.config.beg.to_graph_length(
+            self.config.unit_length * self.config.time_axis_scale,
+            self.config.time_axis_scale_mode,
+        );
+
         // process the first station
-        let beg = stations_to_draw[0];
-        station_draw_info.push((beg, position));
-        station_indices.insert(beg, 0);
+        let beg = self.config.stations_to_draw[0];
+        self.stations_draw_info.push((beg, position));
+        self.station_indices.insert(beg, 0);
         // handle the first station label
         let (width, height) = stations.get(&beg).unwrap().label_size;
-        collision_manager.add_collision(vec![
+        self.collision_manager.add_collision(vec![
             Node(label_beg - width - 3.0.into(), position - height * 0.5),
             Node(label_beg - 3.0.into(), position - height * 0.5),
             Node(label_beg - 3.0.into(), position + height * 0.5),
             Node(label_beg - width - 3.0.into(), position + height * 0.5),
         ]);
 
-        for (window_idx, win) in stations_to_draw.windows(2).enumerate() {
+        for (window_idx, win) in self.config.stations_to_draw.windows(2).enumerate() {
             let [beg, end] = win else {
                 continue;
             };
@@ -84,10 +157,10 @@ impl Output {
             ) {
                 (Some(len1), Some(len2)) => {
                     IntervalLength::new((len1.meters() + len2.meters()) / 2)
-                        .to_graph_length(unit_length, scale_mode)
+                        .to_graph_length(unit_length, self.config.position_axis_scale_mode)
                 }
                 (Some(len), None) | (None, Some(len)) => {
-                    len.to_graph_length(unit_length, scale_mode)
+                    len.to_graph_length(unit_length, self.config.position_axis_scale_mode)
                 }
                 (None, None) => {
                     return Err(anyhow!(
@@ -98,14 +171,14 @@ impl Output {
                 }
             };
 
-            graph_intervals.push(interval_length);
+            self.graph_intervals.push(interval_length);
             position += interval_length;
-            station_draw_info.push((*end, position));
-            station_indices.insert(*end, window_idx + 1);
+            self.stations_draw_info.push((*end, position));
+            self.station_indices.insert(*end, window_idx + 1);
 
             let (width, height) = stations.get(end).unwrap().label_size;
             // insert station label. nodes are in absolute coordinates
-            collision_manager.add_collision(vec![
+            self.collision_manager.add_collision(vec![
                 Node(label_beg - width - 3.0.into(), position - height * 0.5),
                 Node(label_beg - 3.0.into(), position - height * 0.5),
                 Node(label_beg - 3.0.into(), position + height * 0.5),
@@ -113,84 +186,17 @@ impl Output {
             ]);
         }
 
-        Ok((station_draw_info, station_indices, trains, graph_intervals))
+        Ok(trains)
     }
 
-    pub fn new(network: Network, config: &NetworkConfig) -> Result<Self> {
-        let mut collision_manager = CollisionManager::new(config.unit_length);
-        let (stations_draw_info, station_indices, trains_draw_info, graph_intervals) =
-            Self::make_station_draw_info(
-                &config.stations_to_draw,
-                &network.stations,
-                &network.intervals,
-                config.position_axis_scale_mode,
-                config.unit_length * config.position_axis_scale,
-                config.beg.to_graph_length(
-                    config.unit_length * config.time_axis_scale,
-                    config.time_axis_scale_mode,
-                ),
-                &mut collision_manager,
-            )?;
-
-        collision_manager.update_x_min(GraphLength::from(
-            config
-                .beg
-                .to_graph_length(
-                    config.unit_length * config.time_axis_scale,
-                    config.time_axis_scale_mode,
-                )
-                .value(),
-        ));
-        collision_manager.update_x_max(GraphLength::from(
-            config
-                .end
-                .to_graph_length(
-                    config.unit_length * config.time_axis_scale,
-                    config.time_axis_scale_mode,
-                )
-                .value(),
-        ));
-        collision_manager.update_y_min(GraphLength::from(
-            stations_draw_info.first().map_or(0.0, |(_, y)| y.value()),
-        ));
-        collision_manager.update_y_max(GraphLength::from(
-            stations_draw_info.last().map_or(0.0, |(_, y)| y.value()),
-        ));
-        let mut trains: Vec<OutputTrain> = Vec::with_capacity(trains_draw_info.len());
-
-        for train in trains_draw_info {
-            trains.push(
-                Self::make_train(
-                    &stations_draw_info,
-                    &station_indices,
-                    network.trains.get(&train).unwrap(),
-                    config.unit_length * config.time_axis_scale,
-                    config.time_axis_scale_mode,
-                    &mut collision_manager,
-                )
-                .unwrap(),
-            )
-        }
-
-        Ok(Self {
-            collision_manager,
-            trains,
-            graph_intervals,
-        })
-    }
-    fn make_train(
-        stations_draw_info: &[(StationID, GraphLength)],
-        station_indices: &MultiMap<StationID, usize>,
-        train: &Train,
-        unit_length: GraphLength,
-        scale_mode: ScaleMode,
-        collision_manager: &mut CollisionManager,
-    ) -> Result<OutputTrain> {
+    fn make_train(&mut self, train: &Train) -> Result<OutputTrain> {
         let schedule = &train.schedule;
         let mut edges: Vec<Vec<Node>> = Vec::new();
         let mut local_edges: Vec<(Vec<Node>, usize)> = Vec::new();
+        let unit_length = self.config.unit_length * self.config.time_axis_scale;
+
         for entry in schedule {
-            let Some(graph_idxs) = station_indices.get_vec(&entry.station) else {
+            let Some(graph_idxs) = self.station_indices.get_vec(&entry.station) else {
                 if local_edges.is_empty() {
                     continue;
                 }
@@ -210,26 +216,34 @@ impl Output {
                     let (mut matched_edge, _) = local_edges.remove(pos);
                     // add nodes to remaining
                     matched_edge.push(Node(
-                        entry.arrival.to_graph_length(unit_length, scale_mode),
-                        stations_draw_info[*graph_idx].1,
+                        entry
+                            .arrival
+                            .to_graph_length(unit_length, self.config.time_axis_scale_mode),
+                        self.stations_draw_info[*graph_idx].1,
                     ));
                     if entry.arrival != entry.departure {
                         matched_edge.push(Node(
-                            entry.departure.to_graph_length(unit_length, scale_mode),
-                            stations_draw_info[*graph_idx].1,
+                            entry
+                                .departure
+                                .to_graph_length(unit_length, self.config.time_axis_scale_mode),
+                            self.stations_draw_info[*graph_idx].1,
                         ));
                     }
                     remaining.push((matched_edge, *graph_idx));
                 } else {
                     // start a new edge, if not found
                     let mut new_edge = vec![Node(
-                        entry.arrival.to_graph_length(unit_length, scale_mode),
-                        stations_draw_info[*graph_idx].1,
+                        entry
+                            .arrival
+                            .to_graph_length(unit_length, self.config.time_axis_scale_mode),
+                        self.stations_draw_info[*graph_idx].1,
                     )];
                     if entry.arrival != entry.departure {
                         new_edge.push(Node(
-                            entry.departure.to_graph_length(unit_length, scale_mode),
-                            stations_draw_info[*graph_idx].1,
+                            entry
+                                .departure
+                                .to_graph_length(unit_length, self.config.time_axis_scale_mode),
+                            self.stations_draw_info[*graph_idx].1,
                         ));
                     }
                     remaining.push((new_edge, *graph_idx));
@@ -248,46 +262,155 @@ impl Output {
         // handle the remaining local edges
         edges.extend(local_edges.into_iter().map(|(nodes, _)| nodes));
 
+        // Filter out edges with less than 2 nodes before processing labels
+        edges.retain(|edge| edge.len() >= 2);
+
         // iterate over all edges and add collision nodes
         let (label_width, label_height) = train.label_size;
         for edge in &mut edges {
-            // precondition: an edge will have at least one node
-            let first_node = *edge.first().unwrap();
-            let last_node = *edge.last().unwrap();
-            let r1 = collision_manager.resolve_collisions(
-                &rotate(
-                    vec![
-                        Node(first_node.0 - label_width, first_node.1 - label_height),
-                        Node(first_node.0, first_node.1 - label_height),
-                        first_node,
-                        Node(first_node.0 - label_width, first_node.1),
-                    ],
-                    first_node,
-                    20.0f64.to_radians(),
-                ),
-                -90.0f64.to_radians(),
-            );
-            if let Ok(length) = r1 {
-                edge.insert(0, Node(first_node.0, first_node.1 - length));
-            }
-            let r2 = collision_manager.resolve_collisions(
-                &rotate(
-                    vec![
-                        Node(last_node.0 + label_width, last_node.1 - label_height),
-                        Node(last_node.0, last_node.1 - label_height),
-                        last_node,
-                        Node(last_node.0 + label_width, last_node.1),
-                    ],
-                    last_node,
-                    -20.0f64.to_radians(),
-                ),
-                -90.0f64.to_radians(),
-            );
-            if let Ok(length) = r2 {
-                edge.push(Node(last_node.0, last_node.1 - length));
-            }
+            self.add_train_labels_to_edge(edge, label_width, label_height)?;
         }
 
         Ok(OutputTrain { edges })
+    }
+
+    fn create_label_polygon(
+        &self,
+        anchor: Node,
+        label_width: GraphLength,
+        label_height: GraphLength,
+        direction: &LabelPosition,
+    ) -> (Vec<Node>, f64) {
+        match direction {
+            LabelPosition::Beg(dir) => {
+                let polygon = vec![
+                    Node(anchor.0 - label_width, anchor.1 - label_height),
+                    Node(anchor.0, anchor.1 - label_height),
+                    anchor,
+                    Node(anchor.0 - label_width, anchor.1),
+                ];
+                match dir {
+                    // the up and downs are reversed for typst
+                    LabelDirection::Up => (
+                        rotate(polygon, anchor, -self.config.label_angle),
+                        90.0f64.to_radians(),
+                    ),
+                    _ => (
+                        rotate(polygon, anchor, self.config.label_angle),
+                        -90.0f64.to_radians(),
+                    ),
+                }
+            }
+            LabelPosition::End(dir) => {
+                let polygon = vec![
+                    Node(anchor.0, anchor.1 - label_height),
+                    Node(anchor.0 + label_width, anchor.1 - label_height),
+                    Node(anchor.0 + label_width, anchor.1),
+                    anchor,
+                ];
+                match dir {
+                    LabelDirection::Up => (
+                        rotate(polygon, anchor, -self.config.label_angle),
+                        -90.0f64.to_radians(),
+                    ),
+                    _ => (
+                        rotate(polygon, anchor, self.config.label_angle),
+                        90.0f64.to_radians(),
+                    ),
+                }
+            }
+        }
+    }
+
+    fn add_train_labels_to_edge(
+        &mut self,
+        edge: &mut Vec<Node>,
+        label_width: GraphLength,
+        label_height: GraphLength,
+    ) -> Result<()> {
+        let beg = *edge.first().unwrap();
+        let end = *edge.last().unwrap();
+
+        let label_direction = if edge.len() > 2 {
+            // check the first three nodes to determine general direction
+            let (first, second, third) = (edge[0], edge[1], edge[2]);
+            // check if the general trend is upwards
+            // typst logic is reversed, so the directions are reversed
+            if (second.1 > first.1) || (third.1 > second.1) {
+                LabelPosition::Beg(LabelDirection::Down)
+            } else {
+                LabelPosition::Beg(LabelDirection::Up)
+            }
+        } else {
+            let (first, last) = (edge[0], edge[1]);
+            if first.1 < last.1 {
+                LabelPosition::Beg(LabelDirection::Down)
+            } else {
+                LabelPosition::Beg(LabelDirection::Up)
+            }
+        };
+
+        // Add label at the beginning of the edge
+        self.add_label(edge, beg, label_width, label_height, &label_direction)?;
+
+        // Add label at the end of the edge (only if edge has more than one node)
+
+        // Determine direction for end label (might be different from beginning)
+        let end_direction = if edge.len() > 2 {
+            // check the last three nodes to determine general direction
+            let (last, second_last, third_last) = (
+                edge[edge.len() - 1],
+                edge[edge.len() - 2],
+                edge[edge.len() - 3],
+            );
+            // check if the general trend is upwards
+            if (last.1 < second_last.1) || (second_last.1 < third_last.1) {
+                LabelPosition::End(LabelDirection::Up)
+            } else {
+                LabelPosition::End(LabelDirection::Down)
+            }
+        } else {
+            let (first, last) = (edge[0], edge[1]);
+            if last.1 < first.1 {
+                LabelPosition::End(LabelDirection::Up)
+            } else {
+                LabelPosition::End(LabelDirection::Down)
+            }
+        };
+
+        // Insert at the end
+        self.add_label(edge, end, label_width, label_height, &end_direction)?;
+
+        Ok(())
+    }
+
+    fn add_label(
+        &mut self,
+        edge: &mut Vec<Node>,
+        anchor: Node,
+        label_width: GraphLength,
+        label_height: GraphLength,
+        direction: &LabelPosition,
+    ) -> Result<()> {
+        let (polygon, move_angle) =
+            self.create_label_polygon(anchor, label_width, label_height, direction);
+
+        let (resolved_polygon, _) = self
+            .collision_manager
+            .resolve_collisions(polygon, move_angle)?;
+
+        // Insert label nodes based on direction
+        match direction {
+            LabelPosition::Beg(_) => {
+                edge.insert(0, resolved_polygon[2]);
+                edge.insert(0, resolved_polygon[3]);
+            }
+            LabelPosition::End(_) => {
+                edge.push(resolved_polygon[3]);
+                edge.push(resolved_polygon[2]);
+            }
+        }
+
+        Ok(())
     }
 }
