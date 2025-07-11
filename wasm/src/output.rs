@@ -9,8 +9,8 @@ use std::collections::{HashMap, HashSet};
 enum LabelDirection {
     Up,
     Down,
-    Left,
-    Right,
+    // Left,
+    // Right,
 }
 
 enum LabelPosition {

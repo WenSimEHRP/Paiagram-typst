@@ -141,8 +141,8 @@ pub struct Station {
 #[derive(Deserialize)]
 struct StationHelper {
     label_size: (GraphLength, GraphLength),
-    milestones: Option<HashMap<String, IntervalLength>>,
-    tracks: Option<u16>,
+    // milestones: Option<HashMap<String, IntervalLength>>,
+    // tracks: Option<u16>,
 }
 
 pub struct Train {
@@ -181,7 +181,7 @@ pub struct Interval {
 
 #[derive(Deserialize)]
 struct IntervalHelper {
-    name: Option<String>,
+    // name: Option<String>,
     length: IntervalLength,
     bidirectional: Option<bool>,
 }
