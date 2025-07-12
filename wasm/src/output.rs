@@ -220,22 +220,22 @@ impl Output {
             };
             let mut remaining_edges: Vec<(Vec<Node>, usize)> = Vec::new();
             for &graph_index in graph_indices {
+                let edge_start = schedule_entry.arrival.to_graph_length(unit_length);
+                let edge_end = schedule_entry.departure.to_graph_length(unit_length);
+                let mut edge_height = self.stations_draw_info[graph_index].1;
+                if schedule_entry.arrival != schedule_entry.departure {
+                    edge_height += (self.stations_draw_info[graph_index]
+                        .2
+                        .resolve_collisions(edge_start, edge_end)?
+                        as f64
+                        * 3.0)
+                        .into();
+                }
                 if let Some(edge_position) = local_edges
                     .iter()
                     .position(|(_, last_graph_index)| graph_index.abs_diff(*last_graph_index) == 1)
                 {
                     let (mut matched_edge_nodes, _) = local_edges.remove(edge_position);
-                    let edge_start = schedule_entry.arrival.to_graph_length(unit_length);
-                    let edge_end = schedule_entry.departure.to_graph_length(unit_length);
-                    let mut edge_height = self.stations_draw_info[graph_index].1;
-                    if schedule_entry.arrival != schedule_entry.departure {
-                        edge_height += (self.stations_draw_info[graph_index]
-                            .2
-                            .resolve_collisions(edge_start, edge_end)?
-                            as f64
-                            * 3.0)
-                            .into();
-                    }
                     // add nodes to remaining
                     matched_edge_nodes.push(Node(edge_start, edge_height));
                     if schedule_entry.arrival != schedule_entry.departure {
@@ -244,15 +244,9 @@ impl Output {
                     remaining_edges.push((matched_edge_nodes, graph_index));
                 } else {
                     // start a new edge, if not found
-                    let mut new_edge_nodes = vec![Node(
-                        schedule_entry.arrival.to_graph_length(unit_length),
-                        self.stations_draw_info[graph_index].1,
-                    )];
+                    let mut new_edge_nodes = vec![Node(edge_start, edge_height)];
                     if schedule_entry.arrival != schedule_entry.departure {
-                        new_edge_nodes.push(Node(
-                            schedule_entry.departure.to_graph_length(unit_length),
-                            self.stations_draw_info[graph_index].1,
-                        ));
+                        new_edge_nodes.push(Node(edge_end, edge_height));
                     }
                     remaining_edges.push((new_edge_nodes, graph_index));
                 }
