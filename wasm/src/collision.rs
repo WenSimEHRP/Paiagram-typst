@@ -487,8 +487,9 @@ impl LineCollisionManager {
             // Check if the segment overlaps with any existing segments
             for (&existing_start, &existing_end) in c.range(..=test_end) {
                 // Check if the segments overlap
-                if (existing_start <= test_end && existing_end >= test_start) ||
-                   (test_start <= existing_end && test_end >= existing_start) {
+                if (existing_start <= test_end && existing_end >= test_start)
+                    || (test_start <= existing_end && test_end >= existing_start)
+                {
                     return true; // Collision detected
                 }
             }

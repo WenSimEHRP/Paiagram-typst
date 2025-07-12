@@ -77,7 +77,9 @@ impl IntervalLength {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Add, Sub, Deserialize, Serialize, AddAssign)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, PartialOrd, Add, Sub, Deserialize, Serialize, AddAssign,
+)]
 pub struct GraphLength(f64);
 
 impl GraphLength {

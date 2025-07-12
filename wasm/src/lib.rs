@@ -2,10 +2,10 @@ use anyhow::Context;
 use ciborium::{from_reader, into_writer};
 use typst_wasm_protocol::wasm_export;
 
+mod collision;
 mod input;
 mod output;
 mod types;
-mod collision;
 mod utils;
 use input::{Network, NetworkConfig};
 use output::Output;
@@ -21,7 +21,8 @@ fn process_internal(network_data: &[u8], config_data: &[u8]) -> anyhow::Result<V
     let config: NetworkConfig = from_reader(config_data).context("Failed to deserialize config")?;
 
     let mut output = Output::new(config);
-    output.populate(network)
+    output
+        .populate(network)
         .context("Failed to populate output from network and config")?;
 
     let mut serialized_result = Vec::new();
