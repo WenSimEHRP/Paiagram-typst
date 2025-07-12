@@ -43,7 +43,7 @@ pub struct Output {
     trains: Vec<OutputTrain>,
     graph_intervals: Vec<GraphLength>,
     #[serde(skip)]
-    stations_draw_info: Vec<(StationID, GraphLength)>,
+    stations_draw_info: Vec<(StationID, GraphLength, LineCollisionManager)>,
     #[serde(skip)]
     station_indices: MultiMap<StationID, usize>,
     #[serde(skip)]
@@ -79,12 +79,12 @@ impl Output {
         self.collision_manager.update_y_min(GraphLength::from(
             self.stations_draw_info
                 .first()
-                .map_or(0.0, |(_, y)| y.value()),
+                .map_or(0.0, |(_, y, _)| y.value()),
         ));
         self.collision_manager.update_y_max(GraphLength::from(
             self.stations_draw_info
                 .last()
-                .map_or(0.0, |(_, y)| y.value()),
+                .map_or(0.0, |(_, y, _)| y.value()),
         ));
 
         self.trains = Vec::with_capacity(train_ids_to_draw.len());
@@ -135,7 +135,8 @@ impl Output {
 
         // process the first station
         let first_station = self.config.stations_to_draw[0];
-        self.stations_draw_info.push((first_station, position));
+        self.stations_draw_info
+            .push((first_station, position, LineCollisionManager::new()));
         self.station_indices.insert(first_station, 0);
         // handle the first station label
         let (width, height) = stations.get(&first_station).unwrap().label_size;
@@ -180,7 +181,8 @@ impl Output {
 
             self.graph_intervals.push(interval_length);
             position += interval_length;
-            self.stations_draw_info.push((*end_station, position));
+            self.stations_draw_info
+                .push((*end_station, position, LineCollisionManager::new()));
             self.station_indices.insert(*end_station, window_idx + 1);
 
             let (width, height) = stations.get(end_station).unwrap().label_size;
@@ -223,16 +225,21 @@ impl Output {
                     .position(|(_, last_graph_index)| graph_index.abs_diff(*last_graph_index) == 1)
                 {
                     let (mut matched_edge_nodes, _) = local_edges.remove(edge_position);
-                    // add nodes to remaining
-                    matched_edge_nodes.push(Node(
-                        schedule_entry.arrival.to_graph_length(unit_length),
-                        self.stations_draw_info[graph_index].1,
-                    ));
+                    let edge_start = schedule_entry.arrival.to_graph_length(unit_length);
+                    let edge_end = schedule_entry.departure.to_graph_length(unit_length);
+                    let mut edge_height = self.stations_draw_info[graph_index].1;
                     if schedule_entry.arrival != schedule_entry.departure {
-                        matched_edge_nodes.push(Node(
-                            schedule_entry.departure.to_graph_length(unit_length),
-                            self.stations_draw_info[graph_index].1,
-                        ));
+                        edge_height += (self.stations_draw_info[graph_index]
+                            .2
+                            .resolve_collisions(edge_start, edge_end)?
+                            as f64
+                            * 3.0)
+                            .into();
+                    }
+                    // add nodes to remaining
+                    matched_edge_nodes.push(Node(edge_start, edge_height));
+                    if schedule_entry.arrival != schedule_entry.departure {
+                        matched_edge_nodes.push(Node(edge_end, edge_height));
                     }
                     remaining_edges.push((matched_edge_nodes, graph_index));
                 } else {

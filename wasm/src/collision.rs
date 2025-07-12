@@ -1,7 +1,8 @@
 use crate::types::*;
 use anyhow::Result;
+use ordered_float::OrderedFloat;
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// Compute the Axis-Aligned Bounding Box (AABB) for a collection of nodes.
 /// Returns (x_min, x_max, y_min, y_max) or None if the collection is empty.
@@ -106,12 +107,9 @@ impl CollisionManager {
         // Use entry API to reduce HashMap lookups
         for i in x_idx_min..=x_idx_max {
             for j in y_idx_min..=y_idx_max {
-                self.indices
-                    .entry((i, j))
-                    .or_default()
-                    .push(idx);
+                self.indices.entry((i, j)).or_default().push(idx);
             }
-        };
+        }
 
         Ok(self.collisions.last().unwrap().as_slice())
     }
@@ -159,7 +157,9 @@ impl CollisionManager {
         // Check SAT collision with each candidate
         for &idx in &candidates {
             if let Some(existing_polygon) = self.collisions.get(idx) {
-                if let Some((mtv_x, mtv_y, overlap)) = sat_collision_test_with_mtv(collision, existing_polygon) {
+                if let Some((mtv_x, mtv_y, overlap)) =
+                    sat_collision_test_with_mtv(collision, existing_polygon)
+                {
                     // We found a collision, calculate required movement distance
 
                     // Calculate the dot product of MTV with movement direction
@@ -208,13 +208,28 @@ impl CollisionManager {
     /// # Returns
     /// * `Ok(GraphLength)` - Total distance needed to resolve all collisions
     /// * `Err(_)` - Input invalid, too many iterations, or unresolvable collision
-    pub fn resolve_collisions_recursive(&mut self, collision: Vec<Node>, angle: f64, max_iterations: u32) -> Result<(&[Node], GraphLength)> {
-        self.resolve_collisions_recursive_impl(collision, angle, max_iterations, 0, GraphLength::from(0.0))
+    pub fn resolve_collisions_recursive(
+        &mut self,
+        collision: Vec<Node>,
+        angle: f64,
+        max_iterations: u32,
+    ) -> Result<(&[Node], GraphLength)> {
+        self.resolve_collisions_recursive_impl(
+            collision,
+            angle,
+            max_iterations,
+            0,
+            GraphLength::from(0.0),
+        )
     }
 
     /// Convenience function to resolve collisions with a default maximum of 100 iterations.
     /// This is the recommended function to use in most cases.
-    pub fn resolve_collisions(&mut self, collision: Vec<Node>, angle: f64) -> Result<(&[Node], GraphLength)> {
+    pub fn resolve_collisions(
+        &mut self,
+        collision: Vec<Node>,
+        angle: f64,
+    ) -> Result<(&[Node], GraphLength)> {
         self.resolve_collisions_recursive(collision, angle, 255)
     }
 
@@ -225,11 +240,14 @@ impl CollisionManager {
         angle: f64,
         max_iterations: u32,
         current_iteration: u32,
-        accumulated_distance: GraphLength
+        accumulated_distance: GraphLength,
     ) -> Result<(&[Node], GraphLength)> {
         // Check iteration limit
         if current_iteration >= max_iterations {
-            return Err(anyhow::anyhow!("Maximum iterations ({}) reached while resolving collisions", max_iterations));
+            return Err(anyhow::anyhow!(
+                "Maximum iterations ({}) reached while resolving collisions",
+                max_iterations
+            ));
         }
 
         // Check for collision at current position
@@ -237,11 +255,11 @@ impl CollisionManager {
             None => {
                 // No collision, we're done
                 Ok((self.add_collision(collision).unwrap(), accumulated_distance))
-            },
+            }
             Some(required_distance) => {
                 if required_distance.value() <= 0.1 {
                     // No movement needed, but still a collision
-                    return Ok((self.add_collision(collision).unwrap(), accumulated_distance))
+                    return Ok((self.add_collision(collision).unwrap(), accumulated_distance));
                 }
                 // Found collision, move and check again
                 let new_total_distance = accumulated_distance + required_distance;
@@ -250,11 +268,14 @@ impl CollisionManager {
                 let movement_x = angle.cos() * f64::from(required_distance);
                 let movement_y = angle.sin() * f64::from(required_distance);
 
-                let moved_collision: Vec<Node> = collision.iter()
-                    .map(|node| Node(
-                        node.0 + GraphLength::from(movement_x),
-                        node.1 + GraphLength::from(movement_y)
-                    ))
+                let moved_collision: Vec<Node> = collision
+                    .iter()
+                    .map(|node| {
+                        Node(
+                            node.0 + GraphLength::from(movement_x),
+                            node.1 + GraphLength::from(movement_y),
+                        )
+                    })
                     .collect();
 
                 // Recursively check the moved polygon
@@ -263,7 +284,7 @@ impl CollisionManager {
                     angle,
                     max_iterations,
                     current_iteration + 1,
-                    new_total_distance
+                    new_total_distance,
                 )
             }
         }
@@ -398,7 +419,8 @@ pub fn rotate_polygon(polygon: Vec<Node>, center_point: Node, angle: f64) -> Vec
     let center_x = f64::from(center_point.0);
     let center_y = f64::from(center_point.1);
 
-    polygon.into_iter()
+    polygon
+        .into_iter()
         .map(|node| {
             // Translate to origin
             let x = f64::from(node.0) - center_x;
@@ -411,8 +433,66 @@ pub fn rotate_polygon(polygon: Vec<Node>, center_point: Node, angle: f64) -> Vec
             // Translate back
             Node(
                 GraphLength::from(rotated_x + center_x),
-                GraphLength::from(rotated_y + center_y)
+                GraphLength::from(rotated_y + center_y),
             )
         })
         .collect()
+}
+
+pub struct LineCollisionManager {
+    // ignore single node collisions
+    collisions: BTreeMap<i16, BTreeSet<OrderedFloat<f64>>>,
+}
+
+impl LineCollisionManager {
+    pub fn new() -> Self {
+        Self {
+            collisions: BTreeMap::new(),
+        }
+    }
+    #[inline]
+    pub fn add_collision(&mut self, start: GraphLength, end: GraphLength, level: i16) {
+        self.collisions
+            .entry(level)
+            .or_default()
+            .extend([OrderedFloat(f64::from(start)), OrderedFloat(f64::from(end))]);
+    }
+    #[inline]
+    pub fn check_collision(&self, start: GraphLength, end: GraphLength, level: i16) -> bool {
+        let start = OrderedFloat::from(f64::from(start));
+        let end = OrderedFloat::from(f64::from(end));
+        self.collisions.get(&level).map_or(false, |collisions| {
+            !collisions.range(start..end).next().is_none()
+        })
+    }
+    pub fn resolve_collisions(&mut self, start: GraphLength, end: GraphLength) -> Result<i16> {
+        self.resolve_collisions_impl(start, end, 255)
+    }
+    pub fn resolve_collisions_impl(
+        &mut self,
+        start: GraphLength,
+        end: GraphLength,
+        max_depth: i16,
+    ) -> Result<i16> {
+        if f64::from(end - start).abs() <= f64::EPSILON {
+            return Err(anyhow::anyhow! {"The two points cannot be identical"});
+        }
+        for idx in 0..=max_depth {
+            let level = if idx == 0 {
+                0
+            } else if idx % 2 == 1 {
+                (idx + 1) / 2
+            } else {
+                -(idx / 2)
+            };
+            if self.check_collision(start, end, level) {
+                continue;
+            }
+            self.add_collision(start, end, level);
+            return Ok(level);
+        }
+        return Err(
+            anyhow::anyhow! {"Reached maximum recursion depth ({max_depth}) when processing station line collisions"},
+        );
+    }
 }
