@@ -104,6 +104,7 @@
         position_axis_scale: 1.0,
         time_axis_scale: 6.0,
         label_angle: 20deg.rad(),
+        line_stack_space: 2pt / 1pt,
       )),
     ),
   )

@@ -22,7 +22,6 @@ enum LabelPosition {
 struct OutputTrain {
     edges: Vec<OutputEdge>,
     name: String,
-    // TODO colors
 }
 
 #[derive(Serialize)]
@@ -218,15 +217,16 @@ impl Output {
             for &graph_index in graph_indices {
                 let edge_start = schedule_entry.arrival.to_graph_length(unit_length);
                 let edge_end = schedule_entry.departure.to_graph_length(unit_length);
-                let mut edge_height = self.stations_draw_info[graph_index].1;
-                if schedule_entry.arrival != schedule_entry.departure {
-                    edge_height += (self.stations_draw_info[graph_index]
-                        .2
-                        .resolve_collisions(edge_start, edge_end)?
-                        as f64
-                        * 3.0)
-                        .into();
-                }
+                let edge_height = self.stations_draw_info[graph_index].1
+                    + if schedule_entry.arrival != schedule_entry.departure {
+                        self.stations_draw_info[graph_index]
+                            .2
+                            .resolve_collisions(edge_start, edge_end)?
+                            as f64
+                            * self.config.line_stack_space
+                    } else {
+                        0.0.into()
+                    };
                 if let Some(edge_position) = local_edges
                     .iter()
                     .position(|(_, last_graph_index)| graph_index.abs_diff(*last_graph_index) == 1)

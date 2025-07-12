@@ -2,7 +2,7 @@ use crate::types::*;
 use anyhow::Result;
 use ordered_float::OrderedFloat;
 use serde::Serialize;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, HashMap};
 
 /// Compute the Axis-Aligned Bounding Box (AABB) for a collection of nodes.
 /// Returns (x_min, x_max, y_min, y_max) or None if the collection is empty.
@@ -440,31 +440,64 @@ pub fn rotate_polygon(polygon: Vec<Node>, center_point: Node, angle: f64) -> Vec
 }
 
 pub struct LineCollisionManager {
-    // ignore single node collisions
-    collisions: BTreeMap<i16, BTreeSet<OrderedFloat<f64>>>,
+    // Store actual line segments (start, end) instead of individual points
+    collisions: Vec<BTreeMap<OrderedFloat<f64>, OrderedFloat<f64>>>,
 }
 
 impl LineCollisionManager {
     pub fn new() -> Self {
         Self {
-            collisions: BTreeMap::new(),
+            collisions: Vec::new(),
         }
     }
+
     #[inline]
-    pub fn add_collision(&mut self, start: GraphLength, end: GraphLength, level: i16) {
-        self.collisions
-            .entry(level)
-            .or_default()
-            .extend([OrderedFloat(f64::from(start)), OrderedFloat(f64::from(end))]);
+    pub fn add_collision(&mut self, start: GraphLength, end: GraphLength, idx: usize) {
+        let start_f64 = OrderedFloat(f64::from(start));
+        let end_f64 = OrderedFloat(f64::from(end));
+
+        // Ensure start <= end for consistent storage
+        let (segment_start, segment_end) = if start_f64 <= end_f64 {
+            (start_f64, end_f64)
+        } else {
+            (end_f64, start_f64)
+        };
+
+        // Ensure the collisions[idx] BTreeMap exists
+        if self.collisions.len() <= idx {
+            self.collisions.resize_with(idx + 1, BTreeMap::new);
+        }
+
+        // Insert the interval into the map
+        self.collisions[idx].insert(segment_start, segment_end);
     }
+
     #[inline]
-    pub fn check_collision(&self, start: GraphLength, end: GraphLength, level: i16) -> bool {
-        let start = OrderedFloat::from(f64::from(start));
-        let end = OrderedFloat::from(f64::from(end));
-        self.collisions.get(&level).map_or(false, |collisions| {
-            !collisions.range(start..end).next().is_none()
-        })
+    pub fn check_collision(&self, start: GraphLength, end: GraphLength, idx: usize) -> bool {
+        let start_f64 = OrderedFloat(f64::from(start));
+        let end_f64 = OrderedFloat(f64::from(end));
+
+        // Ensure start <= end for consistent comparison
+        let (test_start, test_end) = if start_f64 <= end_f64 {
+            (start_f64, end_f64)
+        } else {
+            (end_f64, start_f64)
+        };
+        if let Some(c) = self.collisions.get(idx) {
+            // Check if the segment overlaps with any existing segments
+            for (&existing_start, &existing_end) in c.range(..=test_end) {
+                // Check if the segments overlap
+                if (existing_start <= test_end && existing_end >= test_start) ||
+                   (test_start <= existing_end && test_end >= existing_start) {
+                    return true; // Collision detected
+                }
+            }
+            false // No collision found
+        } else {
+            false
+        }
     }
+
     pub fn resolve_collisions(&mut self, start: GraphLength, end: GraphLength) -> Result<i16> {
         self.resolve_collisions_impl(start, end, 255)
     }
@@ -474,9 +507,8 @@ impl LineCollisionManager {
         end: GraphLength,
         max_depth: i16,
     ) -> Result<i16> {
-        if f64::from(end - start).abs() <= f64::EPSILON {
-            return Err(anyhow::anyhow! {"The two points cannot be identical"});
-        }
+        // Remove the epsilon check since we're now storing actual line segments
+        // Empty or point segments are valid in some cases
         for idx in 0..=max_depth {
             let level = if idx == 0 {
                 0
@@ -485,10 +517,10 @@ impl LineCollisionManager {
             } else {
                 -(idx / 2)
             };
-            if self.check_collision(start, end, level) {
+            if self.check_collision(start, end, idx as usize) {
                 continue;
             }
-            self.add_collision(start, end, level);
+            self.add_collision(start, end, idx as usize);
             return Ok(level);
         }
         return Err(

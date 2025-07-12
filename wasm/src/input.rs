@@ -198,6 +198,7 @@ pub struct NetworkConfig {
     pub position_axis_scale: f64,
     pub time_axis_scale: f64,
     pub label_angle: f64,
+    pub line_stack_space: GraphLength,
 }
 
 #[derive(Deserialize)]
@@ -211,6 +212,7 @@ struct NetworkConfigHelper {
     position_axis_scale: f64,
     time_axis_scale: f64,
     label_angle: f64,
+    line_stack_space: GraphLength,
 }
 
 impl TryFrom<NetworkConfigHelper> for NetworkConfig {
@@ -261,6 +263,7 @@ impl TryFrom<NetworkConfigHelper> for NetworkConfig {
             end: helper.end,
             unit_length: helper.unit_length,
             position_axis_scale_mode: helper.position_axis_scale_mode,
+            line_stack_space: helper.line_stack_space,
             // time_axis_scale_mode: helper.time_axis_scale_mode,
             position_axis_scale: helper.position_axis_scale,
             time_axis_scale: helper.time_axis_scale,
