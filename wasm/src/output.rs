@@ -33,8 +33,7 @@ struct OutputEdge {
 
 #[derive(Serialize)]
 struct OutputLabel {
-    start: (Node, f64),
-    end: (Node, f64),
+    angles: (f64, f64),
 }
 
 #[derive(Serialize)]
@@ -271,12 +270,9 @@ impl Output {
         // iterate over all edges and add collision nodes
         let (label_width, label_height) = train.label_size;
         for output_edge in &mut output_edges {
-            let (start_label_node, end_label_node) =
+            let angles =
                 self.add_train_labels_to_edge(&mut output_edge.edges, label_width, label_height)?;
-            output_edge.labels = Some(OutputLabel {
-                start: start_label_node,
-                end: end_label_node,
-            })
+            output_edge.labels = Some(OutputLabel { angles })
         }
 
         Ok(OutputTrain {
@@ -342,7 +338,7 @@ impl Output {
         edge: &mut Vec<Node>,
         label_width: GraphLength,
         label_height: GraphLength,
-    ) -> Result<((Node, f64), (Node, f64))> {
+    ) -> Result<(f64, f64)> {
         let edge_start = *edge.first().unwrap();
         let edge_end = *edge.last().unwrap();
 
@@ -366,7 +362,7 @@ impl Output {
         };
 
         // Add label at the beginning of the edge
-        let start_label_node = self.add_label_to_edge(
+        let start_label_angle = self.add_label_to_edge(
             edge,
             edge_start,
             label_width,
@@ -400,7 +396,7 @@ impl Output {
         };
 
         // Insert at the end
-        let end_label_node = self.add_label_to_edge(
+        let end_label_angle = self.add_label_to_edge(
             edge,
             edge_end,
             label_width,
@@ -408,7 +404,7 @@ impl Output {
             &end_label_direction,
         )?;
 
-        Ok((start_label_node, end_label_node))
+        Ok((start_label_angle, end_label_angle))
     }
 
     fn add_label_to_edge(
@@ -418,7 +414,7 @@ impl Output {
         label_width: GraphLength,
         label_height: GraphLength,
         label_direction: &LabelPosition,
-    ) -> Result<(Node, f64)> {
+    ) -> Result<f64> {
         let (polygon, movement_angle, label_angle) =
             self.create_label_polygon(anchor_point, label_width, label_height, label_direction);
 
@@ -438,6 +434,6 @@ impl Output {
             }
         }
 
-        Ok((resolved_polygon[0], label_angle))
+        Ok(label_angle)
     }
 }

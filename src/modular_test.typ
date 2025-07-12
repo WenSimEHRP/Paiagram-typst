@@ -1,5 +1,5 @@
 #let plg = plugin("paiagram_wasm.wasm")
-#import "foreign/qetrc.typ": read-qetrc-2
+#import "foreign/qetrc.typ": read-qetrc, match-name-color
 #set page(height: auto, width: auto)
 #set text(font: "Sarasa Mono SC", top-edge: "bounds", bottom-edge: "bounds")
 
@@ -81,7 +81,30 @@
     stations,
     trains,
     intervals,
-  ) = read-qetrc-2(json("../jinghu.pyetgr"))
+  ) = read-qetrc(
+    json("../jinghu.pyetgr"),
+    train-stroke: train => {
+      import "@preview/digestify:0.1.0": *
+      let a = calc.rem(int.from-bytes(md5(bytes(train.name)).slice(0, 4)), 360)
+      oklch(70%, 40%, a * 1deg)
+    },
+    train-label: train => {
+      pad(
+        .1em,
+        grid(
+          columns: 2,
+          rows: auto,
+          align: center + horizon,
+          gutter: .1em,
+          match-name-color(train.name), [#train.name],
+          grid.cell(
+            colspan: 2,
+            text(size: .7em, weight: 600)[#(train.raw.sfz)--#(train.raw.zdz)],
+          ),
+        ),
+      )
+    },
+  )
 
   #let station-name-max-width = calc.max(..stations-to-draw.map(it => it.len()))
 
@@ -102,8 +125,8 @@
         position_axis_scale_mode: "Logarithmic",
         time_axis_scale_mode: "Linear",
         position_axis_scale: 1.0,
-        time_axis_scale: 6.0,
-        label_angle: 20deg.rad(),
+        time_axis_scale: 10.0,
+        label_angle: 10deg.rad(),
         line_stack_space: 2pt / 1pt,
       )),
     ),
@@ -197,6 +220,7 @@
         for train in a.trains {
           for edge in train.edges {
             let (first, ..rest) = edge.edges
+            let last = rest.last()
             let ops = (
               curve.move(pt(first)),
               ..rest.map(it => curve.line(pt(it))),
@@ -215,7 +239,7 @@
             place-curve(
               curve(
                 stroke: stroke(
-                  paint: red,
+                  paint: trains.at(train.name).stroke,
                   cap: "round",
                   join: "round",
                 ),
@@ -223,21 +247,20 @@
               ),
             )
 
-            let (start_anchor, start_angle) = edge.labels.start
+            let (start_angle, end_angle) = edge.labels.angles
             let placed_label = trains.at(train.name).placed_label
             place-curve(
               place(
-                dx: start_anchor.at(0) * 1pt,
-                dy: start_anchor.at(1) * 1pt,
-                rotate(origin: top + left, start_angle * 1rad, placed_label),
+                dx: first.at(0) * 1pt,
+                dy: first.at(1) * 1pt,
+                rotate(origin: top + left, start_angle * 1rad, place(bottom + left, placed_label)),
               ),
             )
-            let (end_anchor, end_angle) = edge.labels.end
             place-curve(
               place(
-                dx: end_anchor.at(0) * 1pt,
-                dy: end_anchor.at(1) * 1pt,
-                rotate(origin: top + left, end_angle * 1rad, placed_label),
+                dx: last.at(0) * 1pt,
+                dy: last.at(1) * 1pt,
+                rotate(origin: top + left, end_angle * 1rad, place(bottom + right, placed_label)),
               ),
             )
           }
