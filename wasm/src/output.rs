@@ -235,7 +235,7 @@ impl Output {
                     .iter()
                     .position(|(_, last_graph_index)| graph_index.abs_diff(*last_graph_index) == 1)
                 {
-                    let (mut matched_edge_nodes, _) = local_edges.remove(edge_position);
+                    let (mut matched_edge_nodes, _) = local_edges.swap_remove(edge_position);
                     // add nodes to remaining
                     matched_edge_nodes.push(Node(edge_start, edge_height));
                     if schedule_entry.arrival != schedule_entry.departure {
