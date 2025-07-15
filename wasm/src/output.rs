@@ -69,15 +69,9 @@ impl Output {
 
         let time_unit_length = self.config.unit_length * self.config.time_axis_scale;
 
-        self.collision_manager.update_x_min(GraphLength::from(
-            self.config
-                .start_time
-                .to_graph_length(time_unit_length)
-                .value(),
-        ));
+        self.collision_manager.update_x_min(GraphLength::from(0.0));
         self.collision_manager.update_x_max(GraphLength::from(
-            self.config
-                .end_time
+            (self.config.end_time - self.config.start_time)
                 .to_graph_length(time_unit_length)
                 .value(),
         ));
@@ -312,7 +306,17 @@ impl Output {
                         remaining_edge = Some((matched_edge, graph_index));
                     }
                 } else if ce.arrival < self.config.start_time {
-                    if ce.departure < self.config.start_time {
+                    if ce.departure < ce.arrival {
+                        // spam across the whole map
+                        let height = current_base_height
+                            + current_collision_manager.resolve_collisions(map_start, map_end)?
+                                as f64
+                                * self.config.line_stack_space;
+                        output_edges.push(OutputEdge {
+                            edges: vec![Node(map_start, height), Node(map_end, height)],
+                            labels: None,
+                        });
+                    } else if ce.departure < self.config.start_time {
                         // do nothing
                     } else if ce.departure < self.config.end_time {
                         // draw normally
@@ -391,27 +395,32 @@ impl Output {
                         ]);
                         remaining_edge = Some((matched_edge, graph_index));
                     }
-                } else if ce.departure < self.config.start_time {
-                    // do nothing
-                } else if ce.departure < self.config.end_time {
-                    // draw normally
-                    let height = current_base_height
-                        + current_collision_manager.resolve_collisions(map_start, edge_end())?
-                            as f64
-                            * self.config.line_stack_space;
-                    remaining_edge = Some((
-                        vec![Node(map_start, height), Node(edge_end(), height)],
-                        graph_index,
-                    ));
                 } else {
-                    // the edge spams across the whole map
-                    let height = current_base_height
-                        + current_collision_manager.resolve_collisions(map_start, map_end)? as f64
-                            * self.config.line_stack_space;
-                    output_edges.push(OutputEdge {
-                        edges: vec![Node(map_start, height), Node(map_end, height)],
-                        labels: None,
-                    });
+                    if ce.departure < self.config.start_time {
+                        // do nothing
+                    } else if ce.departure < self.config.end_time {
+                        // draw normally
+                        let height = current_base_height
+                            + current_collision_manager.resolve_collisions(map_start, edge_end())?
+                                as f64
+                                * self.config.line_stack_space;
+                        remaining_edge = Some((
+                            vec![Node(map_start, height), Node(edge_end(), height)],
+                            graph_index,
+                        ));
+                    } else if ce.departure < ce.arrival {
+                        // the edge spams across the whole map
+                        let height = current_base_height
+                            + current_collision_manager.resolve_collisions(map_start, map_end)?
+                                as f64
+                                * self.config.line_stack_space;
+                        output_edges.push(OutputEdge {
+                            edges: vec![Node(map_start, height), Node(map_end, height)],
+                            labels: None,
+                        });
+                    } else {
+                        // do nothing
+                    }
                 }
 
                 // The same station cannot appear twice in a row, neither can they appear
@@ -444,7 +453,23 @@ impl Output {
 
                 if ce.departure < self.config.start_time {
                     // remaining edge MUST be none
-                    if ne.arrival < self.config.start_time {
+                    if ne.arrival < ce.departure {
+                        // spam across the whole map
+                        let start_inter_node = intersection(
+                            Node(edge_end(), current_base_height),
+                            Node(next_edge_start().unwrap(), *next_base_height),
+                            map_start,
+                        )?;
+                        let end_inter_node = intersection(
+                            Node(edge_end(), current_base_height),
+                            Node(next_edge_start().unwrap(), *next_base_height),
+                            map_end,
+                        )?;
+                        output_edges.push(OutputEdge {
+                            edges: vec![start_inter_node, end_inter_node],
+                            labels: None,
+                        });
+                    } else if ne.arrival < self.config.start_time {
                         // do nothing
                     } else if ne.arrival < self.config.end_time {
                         let mut op_vec = Vec::with_capacity(2);
@@ -519,17 +544,35 @@ impl Output {
                             labels: None,
                         });
                     }
-                } else if ne.arrival < self.config.start_time {
-                    // do nothing
-                } else if ne.arrival < self.config.end_time {
-                    let inter_node = intersection(
-                        Node(yesterday_departure(), current_base_height),
-                        Node(next_edge_start().unwrap(), *next_base_height),
-                        map_start,
-                    )?;
-                    remaining_edge = Some((vec![inter_node], graph_index));
                 } else {
-                    // do nothing
+                    if ne.arrival < ce.departure {
+                        let start_inter_node = intersection(
+                            Node(yesterday_departure(), current_base_height),
+                            Node(next_edge_start().unwrap(), *next_base_height),
+                            map_start,
+                        )?;
+                        let end_inter_node = intersection(
+                            Node(yesterday_departure(), current_base_height),
+                            Node(next_edge_start().unwrap(), *next_base_height),
+                            map_end,
+                        )?;
+                        output_edges.push(OutputEdge {
+                            edges: vec![start_inter_node, end_inter_node],
+                            labels: None,
+                        });
+                    }
+                    if ne.arrival < self.config.start_time {
+                        // do nothing
+                    } else if ne.arrival < self.config.end_time {
+                        let inter_node = intersection(
+                            Node(yesterday_departure(), current_base_height),
+                            Node(next_edge_start().unwrap(), *next_base_height),
+                            map_start,
+                        )?;
+                        remaining_edge = Some((vec![inter_node], graph_index));
+                    } else {
+                        // do nothing
+                    }
                 }
             }
             if let Some(remaining_edge) = remaining_edge {
