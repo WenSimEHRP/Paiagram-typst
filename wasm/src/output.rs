@@ -424,7 +424,8 @@ impl Output {
 
                 // query the next station's position
                 // there might be an index out of bounds error here, so use the safe method
-                let Some(((_, next_base_height, _), compare_result)) = (graph_index
+                // TODO: track settings
+                let Some(((_, next_base_height, _), _compare_result)) = (graph_index
                     .saturating_sub(1)
                     ..=graph_index.saturating_add(1))
                     .find_map(|idx| {
