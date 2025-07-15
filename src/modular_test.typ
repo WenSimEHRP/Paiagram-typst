@@ -82,7 +82,7 @@
     trains,
     intervals,
   ) = read-qetrc(
-    json("../jingguang.pyetgr"),
+    json("../jinghu.pyetgr"),
     train-stroke: train => {
       import "@preview/digestify:0.1.0": *
       let a = calc.rem(int.from-bytes(md5(bytes(train.name)).slice(0, 4)), 360)
@@ -112,14 +112,14 @@
     },
   )
 
-  #for file in ("../jinghu.pyetgr", "../examples/sample.pyetgr", "../jingha.pyetgr") {
-    let (sstations, strains, sintervals) = read-qetrc(json(file))
-    {
-      stations += sstations
-      trains += strains
-      intervals += sintervals
-    }
-  }
+  // #for file in ("../jinghu.pyetgr", "../examples/sample.pyetgr", "../jingha.pyetgr") {
+  //   let (sstations, strains, sintervals) = read-qetrc(json(file))
+  //   {
+  //     stations += sstations
+  //     trains += strains
+  //     intervals += sintervals
+  //   }
+  // }
 
   #let stations-to-draw = stations.keys()
 

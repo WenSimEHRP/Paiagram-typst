@@ -217,6 +217,14 @@ impl Output {
             let ce: &ScheduleEntry = schedule.get(schedule_idx).unwrap();
             // the last station entry does not have a next entry
             let ne: Option<&ScheduleEntry> = schedule.get(schedule_idx + 1);
+
+            // Lazy evaluation closures
+            let edge_start = || (ce.arrival - self.config.start_time).to_graph_length(unit_length);
+            let edge_end = || (ce.departure - self.config.start_time).to_graph_length(unit_length);
+            let next_edge_start = || ne.map(|n| (n.arrival - self.config.start_time).to_graph_length(unit_length));
+            let tomorrow_next_arrival = || ne.map(|n| n.arrival.tomorrow().to_graph_length(unit_length));
+            let yesterday_departure = || ce.departure.yesterday().to_graph_length(unit_length);
+
             let Some(current_indices) = previous_indices else {
                 if schedule_idx < schedule.len() - 1 {
                     let ne = &schedule[schedule_idx + 1];
@@ -233,8 +241,6 @@ impl Output {
                 ));
                 continue;
             };
-            let edge_start = (ce.arrival - self.config.start_time).to_graph_length(unit_length);
-            let edge_end = (ce.departure - self.config.start_time).to_graph_length(unit_length);
             let mut remaining_edges: Vec<(Vec<Node>, usize)> = Vec::new();
             let mut remaining_edge: Option<(Vec<Node>, usize)> = None;
             for &graph_index in current_indices {
@@ -253,11 +259,11 @@ impl Output {
                     {
                         // the edge extends to the right of the map
                         let height = current_base_height
-                            + current_collision_manager.resolve_collisions(edge_start, map_end)?
+                            + current_collision_manager.resolve_collisions(edge_start(), map_end)?
                                 as f64
                                 * self.config.line_stack_space;
                         matched_edge
-                            .extend_from_slice(&[Node(edge_start, height), Node(map_end, height)]);
+                            .extend_from_slice(&[Node(edge_start(), height), Node(map_end, height)]);
                         output_edges.push(OutputEdge {
                             edges: matched_edge,
                             labels: None,
@@ -265,35 +271,35 @@ impl Output {
                     } else if ce.departure < ce.arrival {
                         // the edge extends to the right of the map, then turns back into the map
                         let height = current_base_height
-                            + current_collision_manager.resolve_collisions(edge_start, map_end)?
+                            + current_collision_manager.resolve_collisions(edge_start(), map_end)?
                                 as f64
                                 * self.config.line_stack_space;
                         matched_edge
-                            .extend_from_slice(&[Node(edge_start, height), Node(map_end, height)]);
+                            .extend_from_slice(&[Node(edge_start(), height), Node(map_end, height)]);
                         output_edges.push(OutputEdge {
                             edges: matched_edge,
                             labels: None,
                         });
                         let height = current_base_height
-                            + current_collision_manager.resolve_collisions(map_start, edge_end)?
+                            + current_collision_manager.resolve_collisions(map_start, edge_end())?
                                 as f64
                                 * self.config.line_stack_space;
                         remaining_edge = Some((
-                            vec![Node(map_start, height), Node(edge_end, height)],
+                            vec![Node(map_start, height), Node(edge_end(), height)],
                             graph_index,
                         ));
                     } else if ce.departure == ce.arrival {
                         // the edge is a point
-                        matched_edge.push(Node(edge_start, current_base_height));
+                        matched_edge.push(Node(edge_start(), current_base_height));
                         remaining_edge = Some((matched_edge, graph_index));
                     } else {
                         // the edge extends forwards but not beyond the map
                         let height = current_base_height
-                            + current_collision_manager.resolve_collisions(edge_start, edge_end)?
+                            + current_collision_manager.resolve_collisions(edge_start(), edge_end())?
                                 as f64
                                 * self.config.line_stack_space;
                         matched_edge
-                            .extend_from_slice(&[Node(edge_start, height), Node(edge_end, height)]);
+                            .extend_from_slice(&[Node(edge_start(), height), Node(edge_end(), height)]);
                         remaining_edge = Some((matched_edge, graph_index));
                     }
                 } else if ce.arrival < self.config.start_time {
@@ -302,11 +308,11 @@ impl Output {
                     } else if ce.departure < self.config.end_time {
                         // draw normally
                         let height = current_base_height
-                            + current_collision_manager.resolve_collisions(map_start, edge_end)?
+                            + current_collision_manager.resolve_collisions(map_start, edge_end())?
                                 as f64
                                 * self.config.line_stack_space;
                         remaining_edge = Some((
-                            vec![Node(map_start, height), Node(edge_end, height)],
+                            vec![Node(map_start, height), Node(edge_end(), height)],
                             graph_index,
                         ));
                     } else {
@@ -326,11 +332,11 @@ impl Output {
                     {
                         // the edge extends to the right of the map
                         let height = current_base_height
-                            + current_collision_manager.resolve_collisions(edge_start, map_end)?
+                            + current_collision_manager.resolve_collisions(edge_start(), map_end)?
                                 as f64
                                 * self.config.line_stack_space;
                         matched_edge
-                            .extend_from_slice(&[Node(edge_start, height), Node(map_end, height)]);
+                            .extend_from_slice(&[Node(edge_start(), height), Node(map_end, height)]);
                         output_edges.push(OutputEdge {
                             edges: matched_edge,
                             labels: None,
@@ -338,35 +344,35 @@ impl Output {
                     } else if ce.departure < ce.arrival {
                         // the edge extends to the right of the map, then turns back into the map
                         let height = current_base_height
-                            + current_collision_manager.resolve_collisions(edge_start, map_end)?
+                            + current_collision_manager.resolve_collisions(edge_start(), map_end)?
                                 as f64
                                 * self.config.line_stack_space;
                         matched_edge
-                            .extend_from_slice(&[Node(edge_start, height), Node(map_end, height)]);
+                            .extend_from_slice(&[Node(edge_start(), height), Node(map_end, height)]);
                         output_edges.push(OutputEdge {
                             edges: matched_edge,
                             labels: None,
                         });
                         let height = current_base_height
-                            + current_collision_manager.resolve_collisions(map_start, edge_end)?
+                            + current_collision_manager.resolve_collisions(map_start, edge_end())?
                                 as f64
                                 * self.config.line_stack_space;
                         remaining_edge = Some((
-                            vec![Node(map_start, height), Node(edge_end, height)],
+                            vec![Node(map_start, height), Node(edge_end(), height)],
                             graph_index,
                         ));
                     } else if ce.departure == ce.arrival {
                         // the edge is a point
-                        matched_edge.push(Node(edge_start, current_base_height));
+                        matched_edge.push(Node(edge_start(), current_base_height));
                         remaining_edge = Some((matched_edge, graph_index));
                     } else {
                         // the edge extends forwards but not beyond the map
                         let height = current_base_height
-                            + current_collision_manager.resolve_collisions(edge_start, edge_end)?
+                            + current_collision_manager.resolve_collisions(edge_start(), edge_end())?
                                 as f64
                                 * self.config.line_stack_space;
                         matched_edge
-                            .extend_from_slice(&[Node(edge_start, height), Node(edge_end, height)]);
+                            .extend_from_slice(&[Node(edge_start(), height), Node(edge_end(), height)]);
                         remaining_edge = Some((matched_edge, graph_index));
                     }
                 } else if ce.departure < self.config.start_time {
@@ -374,10 +380,10 @@ impl Output {
                 } else if ce.departure < self.config.end_time {
                     // draw normally
                     let height = current_base_height
-                        + current_collision_manager.resolve_collisions(map_start, edge_end)? as f64
+                        + current_collision_manager.resolve_collisions(map_start, edge_end())? as f64
                             * self.config.line_stack_space;
                     remaining_edge = Some((
-                        vec![Node(map_start, height), Node(edge_end, height)],
+                        vec![Node(map_start, height), Node(edge_end(), height)],
                         graph_index,
                     ));
                 } else {
@@ -419,9 +425,6 @@ impl Output {
                     continue;
                 };
 
-                let next_edge_start =
-                    (ne.arrival - self.config.start_time).to_graph_length(unit_length);
-
                 if ce.departure < self.config.start_time {
                     // remaining edge MUST be none
                     if ne.arrival < self.config.start_time {
@@ -429,8 +432,8 @@ impl Output {
                     } else if ne.arrival < self.config.end_time {
                         let mut op_vec = Vec::with_capacity(2);
                         let inter_node = intersection(
-                            Node(edge_end, current_base_height),
-                            Node(next_edge_start, *next_base_height),
+                            Node(edge_end(), current_base_height),
+                            Node(next_edge_start().unwrap(), *next_base_height),
                             map_start,
                         )?;
                         op_vec.push(inter_node);
@@ -438,13 +441,13 @@ impl Output {
                     } else {
                         let mut op_vec = Vec::with_capacity(2);
                         let start_inter_node = intersection(
-                            Node(edge_end, current_base_height),
-                            Node(next_edge_start, *next_base_height),
+                            Node(edge_end(), current_base_height),
+                            Node(next_edge_start().unwrap(), *next_base_height),
                             map_start,
                         )?;
                         let end_inter_node = intersection(
-                            Node(edge_end, current_base_height),
-                            Node(next_edge_start, *next_base_height),
+                            Node(edge_end(), current_base_height),
+                            Node(next_edge_start().unwrap(), *next_base_height),
                             map_end,
                         )?;
                         op_vec.extend_from_slice(&[start_inter_node, end_inter_node]);
@@ -458,11 +461,8 @@ impl Output {
                     let (mut matched_edge, _) = remaining_edge.take().unwrap();
                     if ne.arrival < self.config.start_time {
                         let inter_node = intersection(
-                            Node(edge_end, current_base_height),
-                            Node(
-                                ne.arrival.tomorrow().to_graph_length(unit_length),
-                                *next_base_height,
-                            ),
+                            Node(edge_end(), current_base_height),
+                            Node(tomorrow_next_arrival().unwrap(), *next_base_height),
                             map_end,
                         )?;
                         matched_edge.push(inter_node);
@@ -472,11 +472,8 @@ impl Output {
                         });
                     } else if ne.arrival < ce.departure {
                         let end_inter_node = intersection(
-                            Node(edge_end, current_base_height),
-                            Node(
-                                ne.arrival.tomorrow().to_graph_length(unit_length),
-                                *next_base_height,
-                            ),
+                            Node(edge_end(), current_base_height),
+                            Node(tomorrow_next_arrival().unwrap(), *next_base_height),
                             map_end,
                         )?;
                         matched_edge.push(end_inter_node);
@@ -485,11 +482,8 @@ impl Output {
                             labels: None,
                         });
                         let start_inter_node = intersection(
-                            Node(
-                                ce.departure.yesterday().to_graph_length(unit_length),
-                                current_base_height,
-                            ),
-                            Node(next_edge_start, *next_base_height),
+                            Node(yesterday_departure(), current_base_height),
+                            Node(next_edge_start().unwrap(), *next_base_height),
                             map_start,
                         )?;
                         remaining_edge = Some((vec![start_inter_node], graph_index));
@@ -498,8 +492,8 @@ impl Output {
                         remaining_edge = Some((matched_edge, graph_index));
                     } else {
                         let end_inter_node = intersection(
-                            Node(edge_end, current_base_height),
-                            Node(next_edge_start, *next_base_height),
+                            Node(edge_end(), current_base_height),
+                            Node(next_edge_start().unwrap(), *next_base_height),
                             map_end,
                         )?;
                         matched_edge.push(end_inter_node);
@@ -512,11 +506,8 @@ impl Output {
                     // do nothing
                 } else if ne.arrival < self.config.end_time {
                     let inter_node = intersection(
-                        Node(
-                            ce.departure.yesterday().to_graph_length(unit_length),
-                            current_base_height,
-                        ),
-                        Node(next_edge_start, *next_base_height),
+                        Node(yesterday_departure(), current_base_height),
+                        Node(next_edge_start().unwrap(), *next_base_height),
                         map_start,
                     )?;
                     remaining_edge = Some((vec![inter_node], graph_index));
