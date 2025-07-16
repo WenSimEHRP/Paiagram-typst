@@ -4,11 +4,19 @@
 #set page(width: auto, height: auto)
 
 #context {
-  let (stations, trains, intervals) = qetrc.read(json("sample.pyetgr"))
-  paiagram(
-    stations: stations,
-    trains: trains,
-    intervals: intervals,
-    stations-to-draw: stations.keys(),
-  )
+  let data = qetrc.read(json("sample.pyetgr"), train-label: train => pad(.2em, {
+    grid(
+      columns: 1,
+      rows: 2,
+      align: center + horizon,
+      gutter: .1em,
+      grid(
+        columns: 2,
+        gutter: .1em,
+        qetrc.match-name-color(train.name), train.name,
+      ),
+      text(size: .7em, weight: 600)[#(train.raw.sfz)---#(train.raw.zdz)]
+    )
+  }))
+  paiagram(..data, stations-to-draw: data.stations.keys())
 }
