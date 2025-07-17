@@ -217,9 +217,13 @@ impl Output {
             let edge_end = || (ce.departure - self.config.start_time).to_graph_length(unit_length);
             let next_edge_start =
                 || ne.map(|n| (n.arrival - self.config.start_time).to_graph_length(unit_length));
-            let tomorrow_next_arrival =
-                || ne.map(|n| n.arrival.tomorrow().to_graph_length(unit_length));
-            let yesterday_departure = || ce.departure.yesterday().to_graph_length(unit_length);
+            let tomorrow_next_arrival = || {
+                ne.map(|n| {
+                    (n.arrival.tomorrow() - self.config.start_time).to_graph_length(unit_length)
+                })
+            };
+            let yesterday_departure =
+                || (ce.departure.yesterday() - self.config.start_time).to_graph_length(unit_length);
 
             let Some(current_indices) = previous_indices else {
                 if schedule_idx < schedule.len() - 1 {
