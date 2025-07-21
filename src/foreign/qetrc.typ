@@ -58,15 +58,22 @@
   for train in qetrc.at("trains") {
     let name = train.at("checi").at(0)
     let schedule = ()
+    let previous_departure = none
     for entry in train.timetable {
       let arrival = to-timestamp(..entry.ddsj.split(":").map(int))
       let departure = to-timestamp(..entry.cfsj.split(":").map(int))
+      if previous_departure != none and previous_departure > arrival {
+        // add an offset to both times to ensure they are in order
+        arrival += 86400
+        departure += 86400
+      }
       let station = entry.zhanming
       schedule.push((
         station: station,
         arrival: arrival,
         departure: departure,
       ))
+      previous_departure = departure
     }
     let placed_label = train-label((name: name, schedule: schedule, raw: train))
     let draw-stroke = train-stroke((name: name, schedule: schedule, raw: train))
