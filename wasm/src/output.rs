@@ -346,12 +346,10 @@ impl Output {
                         matched_edge.push(start_intersection()?);
                         matched_edge.push(end_intersection()?);
                     }
+                } else if ne.arrival <= self.config.end_time {
+                    // do nothing for now
                 } else {
-                    if ne.arrival <= self.config.end_time {
-                        // do nothing for now
-                    } else {
-                        matched_edge.push(end_intersection()?);
-                    }
+                    matched_edge.push(end_intersection()?);
                 }
                 remaining_edge = Some((matched_edge, current_line_index));
             }
