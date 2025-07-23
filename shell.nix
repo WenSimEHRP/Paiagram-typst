@@ -14,6 +14,7 @@ mkShell {
     typship # shipping tool
     sarasa-gothic # font for typst
     just # command runner
+    gnumake # compile examples
   ];
   shellHook = ''
     export FONTCONFIG_FILE=${fonts}
