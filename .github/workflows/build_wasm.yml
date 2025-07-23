@@ -4,11 +4,11 @@ on:
   push:
     paths:
       - "wasm/**"
-      - ".github/workflows/build.yml"
+      - ".github/workflows/build_wasm.yml"
   pull_request:
     paths:
       - "wasm/**"
-      - ".github/workflows/build.yml"
+      - ".github/workflows/build_wasm.yml"
   workflow_dispatch:
 
 jobs:
