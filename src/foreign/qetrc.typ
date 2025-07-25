@@ -89,7 +89,7 @@
 )
 
 #let fancy-label(train) = {
-  let (label, text-colour, label-colour) = name-color-dict.at(match-type(train.name))
+  let (label, text-colour, label-colour) = name-color-dict.at(train.raw.type)
   pad(2pt, grid(
     columns: 2,
     align: center + horizon,
@@ -107,7 +107,7 @@
 }
 
 #let fancy-stroke(train) = {
-  let (label, text-colour, label-colour) = name-color-dict.at(match-type(train.name))
+  let (label, text-colour, label-colour) = name-color-dict.at(train.raw.type)
   label-colour
 }
 
