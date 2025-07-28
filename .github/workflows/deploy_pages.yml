@@ -22,11 +22,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Shiora
-        run: cargo install --git https://github.com/Myriad-Dreamin/shiroa --locked shiroa
+      - name: Download & install shiroa
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/Myriad-Dreamin/shiroa/releases/download/v0.3.1-rc3/shiroa-installer.sh | sh
+
+      - name: Download font assets
+        # use fonts in stable releases
+        run: |
+          mkdir -p assets/fonts/
+          curl -L https://github.com/Myriad-Dreamin/shiroa/releases/download/v0.1.2/font-assets.tar.gz | tar -xvz -C assets/fonts
+          curl -L https://github.com/Myriad-Dreamin/shiroa/releases/download/v0.1.0/charter-font-assets.tar.gz | tar -xvz -C assets/fonts
+          curl -L https://github.com/Myriad-Dreamin/shiroa/releases/download/v0.1.5/source-han-serif-font-assets.tar.gz | tar -xvz -C assets/fonts
 
       - name: Build documentation
-        run: shiroa build docs
+        run: |
+          shiroa build --font-path ./assets/typst-fonts/ --font-path ./assets/fonts/ docs --mode=static-html
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
