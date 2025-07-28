@@ -22,10 +22,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install Shiora
+        run: cargo install --git https://github.com/Myriad-Dreamin/shiroa --locked shiroa
+
+      - name: Build documentation
+        run: shiroa build docs
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: "docs"
+          path: "docs/dist"
 
   deploy:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
