@@ -3,7 +3,7 @@ name: Deploy GitHub Pages
 on:
   push:
     branches: [main]
-    paths: ["docs/**", "src/**, .github/workflows/deploy_pages.yml"]
+    paths: ["docs/**", "src/**", ".github/workflows/deploy_pages.yml"]
   workflow_dispatch:
 
 permissions:
