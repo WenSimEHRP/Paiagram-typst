@@ -36,7 +36,7 @@ jobs:
 
       - name: Build documentation
         run: |
-          shiroa build --font-path ./assets/typst-fonts/ --font-path ./assets/fonts/ docs --mode=static-html
+          shiroa build --font-path ./assets/typst-fonts/ --font-path ./assets/fonts/ docs
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
