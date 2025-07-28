@@ -78,19 +78,16 @@
           place(grid(
             columns: (1fr,) * hours * 6,
             rows: a.graph_intervals.map(it => it * 1pt),
-            stroke: gray,
-            ..range(hours * 6).map(it => grid.vline(x: it, stroke: stroke(
-              paint: gray,
-              dash: "loosely-dotted",
-            ))),
-            ..range(hours * 2).map(it => grid.vline(x: it * 3, stroke: stroke(
-              paint: gray,
-              dash: "densely-dotted",
-            ))),
-            ..range(hours).map(it => grid.vline(x: it * 6, stroke: stroke(
-              paint: gray,
-              dash: "solid",
-            )))
+            stroke: (left: none, right: none, rest: gray),
+            ..for i in range(hours * 6 + 1) {
+              if calc.rem(i, 6) == 0 {
+                (grid.vline(x: i, stroke: gray),)
+              } else if calc.rem(i, 3) == 0 {
+                (grid.vline(x: i, stroke: stroke(cap: "round", paint: gray, dash: "loosely-dashed")),)
+              } else {
+                (grid.vline(x: i, stroke: stroke(cap: "round", paint: gray, dash: "loosely-dotted")),)
+              }
+            }
           ))
           place(grid(
             columns: (1fr,) * hours,
