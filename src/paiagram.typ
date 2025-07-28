@@ -133,24 +133,20 @@
               curve.move(to-point(first)),
               ..rest.map(it => curve.line(to-point(it))),
             )
-            place(curve(
-              stroke: stroke(
-                paint: white,
-                thickness: 2pt,
-                cap: "round",
-                join: "round",
-              ),
-              ..ops,
-            ))
-            place(curve(
-              stroke: stroke(
-                paint: trains.at(train.name).stroke,
-                cap: "round",
-                join: "round",
-              ),
-              ..ops,
-            ))
-
+            let train-stroke = trains.at(train.name).stroke
+            if type(train-stroke) == array {
+              for s in train-stroke {
+                place(curve(
+                  stroke: s,
+                  ..ops,
+                ))
+              }
+            } else {
+              place(curve(
+                stroke: train-stroke,
+                ..ops,
+              ))
+            }
             let (start_angle, end_angle) = edge.labels.angles
             let placed_label = trains.at(train.name).placed_label
             place(dx: first.at(0) * 1pt, dy: first.at(1) * 1pt, rotate(origin: top + left, start_angle * 1rad, place(
