@@ -36,7 +36,7 @@ jobs:
 
       - name: Build documentation
         run: |
-          shiroa build --font-path ./assets/typst-fonts/ --font-path ./assets/fonts/ docs --path-to-root /Paiagram
+          shiroa build --font-path ./assets/typst-fonts/ --font-path ./assets/fonts/ docs --path-to-root /Paiagram/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
