@@ -138,6 +138,7 @@ impl IntervalLength {
             ScaleMode::Linear => self.kilometers(),
             ScaleMode::Logarithmic => self.kilometers().ln().max(1.0),
             ScaleMode::Uniform => 1.0,
+            ScaleMode::Squared => self.kilometers().powi(2),
         };
         unit_length * length
     }
@@ -196,6 +197,7 @@ pub enum ScaleMode {
     Linear,
     Logarithmic,
     Uniform,
+    Squared,
 }
 
 #[derive(Debug, Serialize, Clone, Copy, Deserialize)]
