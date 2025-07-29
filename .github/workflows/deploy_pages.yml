@@ -43,13 +43,6 @@ jobs:
         with:
           path: "docs/dist"
 
-      - name: Upload debug artifact on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-artifact
-          path: .
-
   deploy:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
