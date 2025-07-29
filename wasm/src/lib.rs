@@ -2,6 +2,7 @@ use anyhow::Context;
 use ciborium::{from_reader, into_writer};
 use typst_wasm_protocol::wasm_export;
 
+mod chinese_railway_type;
 mod collision;
 mod input;
 mod output;
@@ -41,4 +42,16 @@ fn format_error_chain(error: anyhow::Error) -> String {
         error_level += 1;
     }
     formatted_result
+}
+
+#[wasm_export]
+pub fn match_type(name: &[u8]) -> Result<&'static [u8], String> {
+    let name =
+        std::str::from_utf8(name).map_err(|_| "Invalid UTF-8 sequence in name".to_string())?;
+    for pt in chinese_railway_type::PATTERNS.iter() {
+        if pt.regex.is_match(name) {
+            return Ok(pt.typ.as_bytes());
+        }
+    }
+    Ok("普客".as_bytes())
 }
