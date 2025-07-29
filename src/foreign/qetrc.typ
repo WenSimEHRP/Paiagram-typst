@@ -1,4 +1,5 @@
 #import "../utils.typ": *
+#let plg = plugin("../paiagram_wasm.wasm")
 /// Turns three integers representing hours, minutes, and seconds into a total timestamp in seconds.
 ///
 /// - h (hour): The hour value
@@ -10,105 +11,125 @@
 }
 
 #let match-type(name) = {
-  // @typstyle off
-  let matches = (
-    (regex("^G\d+")          ,"高速"),
-    (regex("^D\d+")          ,"动车组"),
-    (regex("^C\d+")          ,"城际"),
-    (regex("^Z\d+")          ,"直达特快"),
-    (regex("^T\d+")          ,"特快"),
-    (regex("^K\d+")          ,"快速"),
-    (regex("^S\d+")          ,"市郊"),
-    (regex("^[1-5]\d{3}$")   ,"普快"),
-    (regex("^[1-5]\d{3}\D")  ,"普快"),
-    (regex("^6\d{3}$")       ,"普客"),
-    (regex("^6\d{3}\D")      ,"普客"),
-    (regex("^7[0-5]\d{2}$")  ,"普客"),
-    (regex("^7[0-5]\d{2}\D") ,"普客"),
-    (regex("^7\d{3}$")       ,"通勤"),
-    (regex("^7\d{3}\D")      ,"通勤"),
-    (regex("^8\d{3}$")       ,"通勤"),
-    (regex("^8\d{3}\D")      ,"通勤"),
-    (regex("^Y\d+")          ,"旅游"),
-    (regex("^57\d+")         ,"路用"),
-    (regex("^X1\d{2}")       ,"特快行包"),
-    (regex("^DJ\d+")         ,"动检"),
-    (regex("^0[GDCZTKY]\d+") ,"客车底"),
-    (regex("^L\d+")          ,"临客"),
-    (regex("^0\d{4}")        ,"客车底"),
-    (regex("^X\d{3}\D")      ,"行包"),
-    (regex("^X\d{3}$")       ,"行包"),
-    (regex("^X\d{4}")        ,"班列"),
-    (regex("^1\d{4}")        ,"直达"),
-    (regex("^2\d{4}")        ,"直货"),
-    (regex("^3\d{4}")        ,"区段"),
-    (regex("^4[0-4]\d{3}")   ,"摘挂"),
-    (regex("^4[5-9]\d{3}")   ,"小运转"),
-    (regex("^5[0-2]\d{3}")   ,"单机"),
-    (regex("^5[3-4]\d{3}")   ,"补机"),
-    (regex("^55\d{3}")       ,"试运转"),
-  )
-  let state = "普客"
-  for (pattern, type) in matches {
-    if name.starts-with(pattern) {
-      state = type
-      break
-    }
-  }
-  state
+  str(plg.match_type(bytes(name)))
 }
 
 // @typstyle off
 #let name-color-dict = (
-  高速:     ("高", white, purple),
-  动车组:   ("动", white, purple),
-  城际:     ("城", white, blue),
-  直达特快: ("直", white, purple),
-  特快:     ("特", white, red),
-  快速:     ("快", white, blue),
-  市郊:     ("市", white, green),
-  普快:     ("普", white, green),
-  普客:     ("普", white, green),
-  通勤:     ("通", white, green.darken(20%)),
-  旅游:     ("旅", white, green.darken(20%)),
-  路用:     ("路", white, green.darken(20%)),
-  特快行包: ("特", white, green.darken(20%)),
-  动检:     ("检", white, orange.darken(30%)),
-  客车底:   ("客", white, green.darken(20%)),
-  临客:     ("临", white, green.darken(20%)),
-  行包:     ("行", white, green.darken(20%)),
-  班列:     ("班", white, green.darken(20%)),
-  直达:     ("直", white, green.darken(20%)),
-  直货:     ("直", white, green.darken(20%)),
-  区段:     ("区", white, green.darken(20%)),
-  摘挂:     ("摘", white, green.darken(20%)),
-  小运转:   ("小", white, green.darken(20%)),
-  单机:     ("单", white, green.darken(20%)),
-  补机:     ("补", white, green.darken(20%)),
-  试运转:   ("试", white, green.darken(20%)),
+  高速:     ("高", purple),
+  动车组:   ("动", purple),
+  城际:     ("城", blue),
+  直达特快: ("直", purple),
+  特快:     ("特", red),
+  快速:     ("快", blue),
+  市郊:     ("市", green),
+  普快:     ("普", green),
+  普客:     ("普", green),
+  通勤:     ("通", green.darken(20%)),
+  旅游:     ("旅", green.darken(20%)),
+  路用:     ("路", green.darken(20%)),
+  特快行包: ("特", green.darken(20%)),
+  动检:     ("检", orange.darken(30%)),
+  客车底:   ("客", green.darken(20%)),
+  临客:     ("临", green.darken(20%)),
+  行包:     ("行", green.darken(20%)),
+  班列:     ("班", green.darken(20%)),
+  直达:     ("直", green.darken(20%)),
+  直货:     ("直", green.darken(20%)),
+  区段:     ("区", green.darken(20%)),
+  摘挂:     ("摘", green.darken(20%)),
+  小运转:   ("小", green.darken(20%)),
+  单机:     ("单", green.darken(20%)),
+  补机:     ("补", green.darken(20%)),
+  试运转:   ("试", green.darken(20%)),
 )
 
-#let fancy-label(train) = {
-  let (label, text-colour, label-colour) = name-color-dict.at(train.raw.type)
+#let match-color(train, dict: name-color-dict) = {
+  dict.at(match-type(train.name)).at(1)
+}
+
+#let original-color(train, fallback: match-color) = {
+  if "UI" in train.raw and "Color" in train.raw.UI {
+    rgb(train.raw.UI.Color)
+  } else {
+    fallback(train, dict: name-color-dict)
+  }
+}
+
+#let match-stroke(train, cap: "round", join: "round", paint: auto, thickness: auto, dash: auto, padding: auto) = {
+  paint = if paint == auto {
+    original-color(train)
+  } else if type(paint) == function {
+    paint(train)
+  } else {
+    paint
+  }
+  thickness = if thickness == auto {
+    if "UI" in train.raw and "LineWidth" in train.raw.UI {
+      train.raw.UI.LineWidth / 1.5 * 1pt
+    } else {
+      1pt
+    }
+  } else if type(thickness) == function {
+    thickness(train)
+  } else {
+    thickness
+  }
+  dash = if dash == auto {
+    if "UI" in train.raw and "LineStyle" in train.raw.UI {
+      let style = train.raw.UI.LineStyle
+      if style == 0 {
+        thickness = 0pt
+      } else if style == 1 {
+        "solid"
+      } else if style == 2 {
+        (4pt, .5pt)
+      } else if style == 3 {
+        (2pt, 2pt)
+      } else if style == 4 {
+        (4pt, .5pt, 2pt, .5pt)
+      } else {
+        (4pt, .5pt, 2pt, .5pt, 2pt, .5pt)
+      }
+    } else {
+      "solid"
+    }
+  } else if type(dash) == function {
+    dash(train)
+  } else {
+    dash
+  }
+  padding = if padding == auto { thickness + 1pt + white } else if type(padding) == function { padding(train) } else {
+    padding
+  }
+  (
+    padding,
+    stroke(
+      paint: paint,
+      thickness: thickness,
+      dash: dash,
+      cap: cap,
+      join: join,
+    ),
+  )
+}
+
+#let label-with-type-box(train, paint: original-color) = {
+  let label-colour = if type(paint) == function { paint(train) } else { paint }
   pad(2pt, grid(
     columns: 2,
     align: center + horizon,
     gutter: .1em,
     box(height: .8em, width: .8em, radius: 2pt, fill: label-colour, stroke: 1pt, inset: .1em, text(
-      fill: text-colour,
+      fill: white,
       top-edge: "bounds",
       bottom-edge: "bounds",
       size: .6em,
       weight: 800,
-      label,
+      [],
     )),
     train.name,
   ))
-}
-
-#let fancy-stroke(train) = {
-  let (label, text-colour, label-colour) = name-color-dict.at(train.raw.type)
-  label-colour
 }
 
 #let read(
@@ -171,7 +192,13 @@
       ))
       previous_departure = departure
     }
-    let placed_label = train-label((name: name, schedule: schedule, raw: train))
+    let placed_label = if type(train-label) == function {
+      train-label((name: name, schedule: schedule, raw: train))
+    } else if train-label != none {
+      [#train-label]
+    } else {
+      box(height: .1pt, width: .1pt)
+    }
     let draw-stroke = train-stroke((name: name, schedule: schedule, raw: train))
     let label = measure(placed_label)
     trains.insert(name, (

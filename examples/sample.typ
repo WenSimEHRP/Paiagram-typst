@@ -7,7 +7,7 @@
 // in order to render this properly.
 #set text(font: "Sarasa Mono SC")
 
-// Since qetrc.read uses the `measure` functionto provide label size information,
+// Since qetrc.read uses the `measure` function to provide label size information,
 // we must wrap it in the #context block
 #context {
   // read information from a qETRC pyetgr timetable file
@@ -16,9 +16,9 @@
     json("sample.json"),
     // Specify how to generate the train label
     // In this case we are going for a "fancy" label with an extra box added
-    train-label: qetrc.fancy-label,
+    train-label: qetrc.label-with-type-box.with(paint: qetrc.original-color),
     // Specify how to colour the train curve
-    train-stroke: qetrc.fancy-stroke,
+    train-stroke: qetrc.match-stroke.with(paint: qetrc.original-color),
   )
   // the return type of qetrc.read should be a dictionary
   // with keys: "stations", "trains", "intervals"
@@ -30,9 +30,9 @@
     // specify the stations to draw
     stations-to-draw: data.stations.keys(),
     // specify the start hour. The start hour could be any integer
-    start-hour: 0,
+    start-hour: -2,
     // specify the end hour. The end hour should be an integer,
     // however it cannot be smaller than the start hour
-    end-hour: 24,
+    end-hour: 26,
   )
 }
