@@ -5,12 +5,16 @@
 
 #book-meta(
   title: "Paiagram",
+  authors: ("Jeremy Gao",),
   summary: [
-    #prefix-chapter("sample-page.typ")[Getting started]
+    #prefix-chapter("./intro.typ")[Introduction]
+    = User guide
+    == Importing Foreign Timetables
+    #chapter("foreign/qetrc.typ")[qETRC/pyETRC Files]
+    #chapter("foreign/jgrpp.typ")[OpenTTD JGRPP Orders Exports]
+    = References
   ]
 )
-
-
 
 // re-export page template
 #import "./templates/page.typ": project

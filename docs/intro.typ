@@ -1,6 +1,7 @@
 #import "./book.typ": book-page
+#import "utils.typ": *
 
-#show: book-page.with(title: "Hello, typst")
+#show: book-page.with(title: "What is Paiagram?")
 #show link: underline
 #set heading(numbering: "1.")
 #set par(justify: true, first-line-indent: .25in)
@@ -26,6 +27,8 @@ The generated result is beyond production quality #footnote()[This surely is a b
 A timetable diagram is a diagram that shows the position of several trains on a railway line during a given time interval.
 It is a very common diagram in railway systems, and most railway operations are based on it.
 
+#TODO
+
 = Getting Started <getting-started>
 
 You will need these assets to draw a diagram:
@@ -34,6 +37,4 @@ You will need these assets to draw a diagram:
 - Stations.
 - Optionally, intervals.
 
-You can also use qETRC/pyETRC `.pyetgr` file. You can only import the file using `std.json()` and later process it with `qetrc.read()`
-
-== Trains
+#TODO
