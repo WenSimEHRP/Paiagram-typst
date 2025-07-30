@@ -99,7 +99,7 @@
   } else {
     dash
   }
-  padding = if padding == auto { thickness + 1pt + white } else if type(padding) == function { padding(train) } else {
+  padding = if padding == auto { thickness + 1pt + text.fill.negate() } else if type(padding) == function { padding(train) } else {
     padding
   }
   (
@@ -120,7 +120,7 @@
     columns: 2,
     align: center + horizon,
     gutter: .1em,
-    box(height: .8em, width: .8em, radius: 2pt, fill: label-colour, stroke: 1pt, inset: .1em, text(
+    box(height: .8em, width: .8em, radius: 2pt, fill: label-colour, stroke: 1pt + text.fill, inset: .1em, text(
       fill: white,
       top-edge: "bounds",
       bottom-edge: "bounds",
