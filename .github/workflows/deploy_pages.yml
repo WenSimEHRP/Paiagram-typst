@@ -27,7 +27,7 @@ jobs:
           echo ~/.local/share/typst/packages/preview/paiagram/$(awk -F'"' '/version =/ {print $2}' typst.toml)
           echo $(pwd)
           mkdir -p ~/.local/share/typst/packages/preview/paiagram/
-          ln -s ~/.local/share/typst/packages/preview/paiagram/$(awk -F'"' '/version =/ {print $2}' typst.toml) $(pwd)
+          ln -s "$(pwd)" ~/.local/share/typst/packages/preview/paiagram/$(awk -F'"' '/version =/ {print $2}' typst.toml)
           ls -lash ~/.local/share/typst/packages/preview/paiagram/
           ls -lash ~/.local/share/typst/packages/preview/paiagram/$(awk -F'"' '/version =/ {print $2}' typst.toml)
 
