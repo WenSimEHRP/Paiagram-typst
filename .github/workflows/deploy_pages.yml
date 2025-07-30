@@ -22,6 +22,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Create devlink
+        run: |
+          ln -s ~/.local/share/typst/packages/preview/paiagram/$(awk -F'"' '/version =/ {print $2}' typst.toml) $(pwd)
+
       - name: Download & install shiroa
         run: |
           curl --proto '=https' --tlsv1.2 -LsSf https://github.com/Myriad-Dreamin/shiroa/releases/download/v0.3.1-rc3/shiroa-installer.sh | sh
