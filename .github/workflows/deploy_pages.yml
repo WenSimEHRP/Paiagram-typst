@@ -34,9 +34,7 @@ jobs:
       - name: Move WASM files to src
         run: |
           mkdir -p src
-          ls -lash
-          ls -lash wasm-release
-          mv wasm-release/*.wasm src/
+          mv *.wasm src/
 
       - name: Create devlink
         run: |
