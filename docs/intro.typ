@@ -56,6 +56,6 @@ You will need these assets to draw a diagram:
   })
 }
 
-The example above is from qETRC. It demonstrates a part of _Dazhou-Chengdu Railway_, a real railway line in Sichuan, China.
+The example above is from qETRC. It demonstrates a part of _Dazhou-Chengdu Line_, a real railway in Sichuan, China.
 
 #TODO
