@@ -22,7 +22,7 @@ The generated result is beyond production quality #footnote()[This surely is a b
 
 = How does a timetable diagram work?
 
-- _If you already know how how a timetable diagram work, feel free to skip to @getting-started _
+- _If you already know how a timetable diagram works, feel free to skip to @getting-started _
 
 A timetable diagram is a diagram that shows the position of several trains on a railway line during a given time interval.
 It is a very common diagram in railway systems, and most railway operations are based on it.
@@ -36,5 +36,26 @@ You will need these assets to draw a diagram:
 - Trains.
 - Stations.
 - Optionally, intervals.
+
+#context {
+  block({
+    set align(center)
+    import "@preview/paiagram:0.1.2": *
+    let data = qetrc.read(
+      json("examples/sample.json"),
+      train-label: qetrc.label-with-type-box.with(paint: qetrc.original-color),
+      train-stroke: qetrc.match-stroke.with(paint: qetrc.original-color),
+    )
+    paiagram(
+      ..data,
+      stations-to-draw: data.stations.keys().slice(9, 19),
+      start-hour: 8,
+      end-hour: 14,
+      time-axis-scale: 3.5,
+    )
+  })
+}
+
+The example above is from qETRC. It demonstrates a part of _Dazhou-Chengdu Railway_, a real railway line in Sichuan, China.
 
 #TODO

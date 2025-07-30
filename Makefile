@@ -1,4 +1,4 @@
-EXAMPLES_SRC := $(wildcard examples/*.typ)
+EXAMPLES_SRC := $(wildcard docs/examples/*.typ)
 EXAMPLES_BIN := $(EXAMPLES_SRC:.typ=.pdf)
 
 .PHONY: build_examples clean_examples

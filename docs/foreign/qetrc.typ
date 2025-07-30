@@ -25,3 +25,5 @@ let data = qetrc.read(
 The function returns a dictionary with `trains`, `stations`, and `intervals` keys, which you can use to render the timetable diagram.
 
 #TODO
+
+= Customization
