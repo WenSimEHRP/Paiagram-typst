@@ -28,6 +28,8 @@ jobs:
           echo $(pwd)
           mkdir -p ~/.local/share/typst/packages/preview/paiagram/
           ln -s ~/.local/share/typst/packages/preview/paiagram/$(awk -F'"' '/version =/ {print $2}' typst.toml) $(pwd)
+          ls -lash ~/.local/share/typst/packages/preview/paiagram/
+          ls -lash ~/.local/share/typst/packages/preview/paiagram/$(awk -F'"' '/version =/ {print $2}' typst.toml)
 
       - name: Download & install shiroa
         run: |
