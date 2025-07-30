@@ -10,6 +10,8 @@ on:
       - "wasm/**"
       - ".github/workflows/build_wasm.yml"
   workflow_dispatch:
+  workflow_call:
+    {}
 
 jobs:
   build-wasm:
