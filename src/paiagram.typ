@@ -1,4 +1,4 @@
-#let plg = plugin("paiagram_wasm.wasm")
+#import "utils.typ": *
 #let to-point((x, y)) = (x * 1pt, y * 1pt)
 
 /// Draws a train diagram.

@@ -1,5 +1,4 @@
 #import "../utils.typ": *
-#let plg = plugin("../paiagram_wasm.wasm")
 /// Turns three integers representing hours, minutes, and seconds into a total timestamp in seconds.
 ///
 /// - h (hour): The hour value
