@@ -21,6 +21,7 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
+    needs: build-wasm
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -49,7 +50,7 @@ jobs:
         run: |
           mkdir -p assets/fonts/
           curl -L https://github.com/Myriad-Dreamin/shiroa/releases/download/v0.1.2/font-assets.tar.gz | tar -xvz -C assets/fonts
-          curl -L https://github.com/Myriad-Dreamin/shiroa/releases/download/v0.1.0/charter-font-assets.tar.gz | tar -vz -C assets/fonts
+          curl -L https://github.com/Myriad-Dreamin/shiroa/releases/download/v0.1.0/charter-font-assets.tar.gz | tar -xvz -C assets/fonts
           curl -L https://github.com/Myriad-Dreamin/shiroa/releases/download/v0.1.5/source-han-serif-font-assets.tar.gz | tar -xvz -C assets/fonts
 
       - name: Build documentation
