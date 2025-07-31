@@ -20,6 +20,24 @@ Paiagram is a tool for creating #link("https://www.youtube.com/watch?v=NFLb1IPlY
 
 The generated result is beyond production quality #footnote()[This surely is a bold statement. Typst's extensibility and flexibility are very impressive, yet it still requires a good understanding of typst to use Paiagram effectively. Plus, Paiagram lacks _a lot_ of features that are present in other diagramming tools.], and it can be used in any typst document.
 
+#block(
+  radius: 5pt,
+  stroke: 2pt + red.darken(30%).transparentize(50%),
+  grid(
+    columns: (1fr, auto, auto),
+    inset: 1em,
+    align: horizon,
+    grid.cell(fill: red.transparentize(80%))[
+      This symbol indicates that a part of the documentation is a work-in-progress.
+      It may not be complete, and may change in the future.
+    ],
+    grid.cell(fill: gradient.linear(angle: 90deg / 3 * 2, red.transparentize(80%), red.transparentize(100%)).sharp(3))[
+      $ ==> $
+    ],
+    [#TODO],
+  ),
+)
+
 = How does a timetable diagram work?
 
 - _If you already know how a timetable diagram works, feel free to skip to @getting-started _
@@ -43,7 +61,6 @@ You will need these assets to draw a diagram:
     import "@preview/paiagram:0.1.2": *
     let data = qetrc.read(
       json("examples/sample.json"),
-      train-label: qetrc.label-with-type-box.with(paint: qetrc.original-color),
       train-stroke: qetrc.match-stroke.with(paint: qetrc.original-color),
     )
     paiagram(

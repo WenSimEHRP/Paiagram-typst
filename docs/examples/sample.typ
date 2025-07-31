@@ -13,10 +13,9 @@
   // read information from a qETRC pyetgr timetable file
   let data = qetrc.read(
     // qetrc files are all json files, so use the json function to read it
-    json("sample.json"),
+    json("jinghu.pyetgr"),
     // Specify how to generate the train label
     // In this case we are going for a "fancy" label with an extra box added
-    train-label: qetrc.label-with-type-box.with(paint: qetrc.original-color),
     // Specify how to colour the train curve
     train-stroke: qetrc.match-stroke.with(paint: qetrc.original-color),
   )
