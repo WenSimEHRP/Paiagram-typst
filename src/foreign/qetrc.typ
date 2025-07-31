@@ -98,7 +98,9 @@
   } else {
     dash
   }
-  padding = if padding == auto { thickness + 1pt + text.fill.negate() } else if type(padding) == function { padding(train) } else {
+  padding = if padding == auto { thickness + 1pt + text.fill.negate() } else if type(padding) == function {
+    padding(train)
+  } else {
     padding
   }
   (
@@ -135,6 +137,7 @@
   qetrc,
   route-name: auto,
   train-label: make-train-label,
+  station-label: station => text(top-edge: "ascender", bottom-edge: "descender")[#station.name],
   train-stroke: train => { red },
 ) = {
   let stations = (:)
@@ -160,22 +163,26 @@
     // otherwise we are reading a pyetrc file
     available_stations = qetrc.line.stations.sorted(key: it => it.licheng)
   }
-  for i in range(available_stations.len() - 1) {
-    let beg = available_stations.at(i)
-    let end = available_stations.at(i + 1)
-    let label = measure(beg.zhanming)
-    stations.insert(beg.zhanming, (label_size: (label.width / 1pt, label.height / 1pt)))
-    intervals.push(((beg.zhanming, end.zhanming), (length: int(end.licheng - beg.licheng) * 1000)))
+  let prev-station = none
+  for raw-curr-station in available_stations {
+    let curr-station = (
+      name: raw-curr-station.zhanming,
+      raw: raw-curr-station,
+    )
+    stations.insert(curr-station.name, (label: station-label(curr-station)))
+    if prev-station != none {
+      intervals.push((
+        (prev-station.name, curr-station.name),
+        (length: int(curr-station.raw.licheng - prev-station.raw.licheng) * 1000),
+      ))
+    }
+    prev-station = curr-station
   }
-  // handle the last station
-  let last_station = available_stations.at(available_stations.len() - 1)
-  let last-label = measure(last_station.zhanming)
-  stations.insert(last_station.zhanming, (label_size: (last-label.width / 1pt, last-label.height / 1pt)))
-  for train in qetrc.at("trains") {
-    let name = train.at("checi").at(0)
+  for raw-train in qetrc.at("trains") {
+    let name = raw-train.at("checi").at(0)
     let schedule = ()
     let previous_departure = none
-    for entry in train.timetable {
+    for entry in raw-train.timetable {
       let arrival = to-timestamp(..entry.ddsj.split(":").map(int))
       let departure = to-timestamp(..entry.cfsj.split(":").map(int))
       if previous_departure != none and previous_departure > arrival {
@@ -191,20 +198,10 @@
       ))
       previous_departure = departure
     }
-    let placed_label = if type(train-label) == function {
-      train-label((name: name, schedule: schedule, raw: train))
-    } else if train-label != none {
-      [#train-label]
-    } else {
-      box(height: .1pt, width: .1pt)
-    }
-    let draw-stroke = train-stroke((name: name, schedule: schedule, raw: train))
-    let label = measure(placed_label)
     trains.insert(name, (
-      label_size: (label.width / 1pt, label.height / 1pt),
+      label: train-label((name: name, schedule: schedule, raw: raw-train)),
       schedule: schedule,
-      placed_label: placed_label,
-      stroke: draw-stroke,
+      stroke: train-stroke((name: name, schedule: schedule, raw: raw-train)),
     ))
   }
   (stations: stations, trains: trains, intervals: intervals)

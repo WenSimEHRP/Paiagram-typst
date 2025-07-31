@@ -36,19 +36,33 @@
   time-axis-scale: 4.0,
   /// How much to rotate the labels.
   /// -> angle
-  label-angle: 10deg,
+  label-angle: 30deg,
   /// How much space to leave between stacked lines.
   /// -> length
   line-stack-space: 2pt,
   /// Debug mode flick
   /// -> bool
   debug: false,
-) = {
+) = context {
+  let measure-size(it) = {
+    let size = measure(it)
+    (size.width / 1pt, size.height / 1pt)
+  }
+  let new-stations = (:)
+  for (k, v) in stations {
+    v.insert("label_size", measure-size(v.label))
+    new-stations.insert(k, v)
+  }
+  let new-trains = (:)
+  for (k, v) in trains {
+    v.insert("label_size", measure-size(v.label))
+    new-trains.insert(k, v)
+  }
   let hours = end-hour - start-hour
   let a = cbor(plg.process(
     cbor.encode((
-      stations: stations,
-      trains: trains,
+      stations: new-stations,
+      trains: new-trains,
       intervals: intervals,
     )),
     cbor.encode((
@@ -112,11 +126,14 @@
           place(grid(
             columns: 1fr,
             rows: a.graph_intervals.map(it => it * 1pt),
-            ..stations-to-draw.map(it => place(top + left, place(
-              horizon + right,
-              dx: -3pt,
-              it,
-            )))
+            ..stations-to-draw.map(it => {
+              let placed-label = stations.at(it).label
+              place(top + left, place(
+                horizon + right,
+                dx: -3pt,
+                placed-label,
+              ))
+            })
           ))
         },
       ))
@@ -145,14 +162,14 @@
               ))
             }
             let (start_angle, end_angle) = edge.labels.angles
-            let placed_label = trains.at(train.name).placed_label
+            let train-label = trains.at(train.name).label
             place(dx: first.at(0) * 1pt, dy: first.at(1) * 1pt, rotate(origin: top + left, start_angle * 1rad, place(
               bottom + left,
-              placed_label,
+              train-label,
             )))
             place(dx: last.at(0) * 1pt, dy: last.at(1) * 1pt, rotate(origin: top + left, end_angle * 1rad, place(
               bottom + right,
-              placed_label,
+              train-label,
             )))
             if debug {
               for (i, pt) in edge.edges.enumerate() {
