@@ -12,7 +12,7 @@
   }
 }
 
-#let japanese(trains, stations-to-draw: ()) = context {
+#let intervals(trains, stations-to-draw: ()) = context {
   let column-width = measure([0000]).width
   if stations-to-draw.len() == 0 {
     panic("You must specify at least one station to draw!")
