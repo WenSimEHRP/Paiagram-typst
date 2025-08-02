@@ -142,13 +142,13 @@
   for e in entries {
     let hour = int(e.departure / 3600)
     let minute = int(calc.rem(e.departure, 3600) / 60)
-    if hour > end or hour < start {
+    if hour >= end or hour < start {
       continue
     }
     cell-map
       .at(hour - start)
       .push({
-        let c = strfmt("{:02}", minute)
+        let c = strfmt("{:02}", hour, minute)
         if e.arrival == e.departure {
           text(fill: gray, size: .8em, weight: 600, c)
         } else {
@@ -158,7 +158,7 @@
   }
   let column-count = cell-map.sorted(key: it => it.len()).last().len()
   grid(
-    columns: (auto,) + (column-width,) * column-count,
+    columns: (auto,) + (column-width + .4em,) * column-count,
     rows: 1.5em,
     inset: .2em,
     align: center + horizon,
@@ -168,7 +168,7 @@
     grid.vline(x: 1),
     grid.vline(x: column-count + 1),
     ..range(end - start).map(
-      it => grid.cell(x: 0)[#strfmt("{:02}", it)],
+      it => grid.cell(x: 0)[#strfmt("{:02}", it - start)],
     ),
     ..cell-map
       .enumerate()
