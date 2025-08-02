@@ -1,3 +1,4 @@
+#import "@preview/oxifmt:1.0.0": strfmt
 #let plg = plugin("paiagram_wasm.wasm")
 #let make-train-label(train) = {
   pad(bottom: .14em, text(top-edge: "cap-height", bottom-edge: "baseline")[

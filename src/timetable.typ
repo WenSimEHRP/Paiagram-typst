@@ -4,7 +4,7 @@
   let normalized-time = calc.rem(time, 86400)
   let hour = int(normalized-time / 3600)
   let minute = int(calc.rem(normalized-time, 3600) / 60)
-  let c = if hour < 10 { "0" } + str(hour) + if minute < 10 { "0" } + str(minute)
+  let c = strfmt("{:02}{:02}", hour, minute)
   if matched.arrival == matched.departure {
     place(center + horizon, text(fill: gray, size: .8em, weight: 600, c))
   } else {
@@ -127,5 +127,57 @@
         }
       }
     }
+  )
+}
+
+#let station(trains, station, start: 0, end: 24) = context {
+  let end = end + 1
+  let column-width = measure([0000]).width
+  let entries = for (name, value) in trains {
+    for e in value.schedule.filter(it => it.station == station) {
+      ((..e, raw: (name, value)),)
+    }
+  }.sorted(key: e => e.departure)
+  let cell-map = ((),) * (end - start)
+  for e in entries {
+    let hour = int(e.departure / 3600)
+    let minute = int(calc.rem(e.departure, 3600) / 60)
+    if hour > end or hour < start {
+      continue
+    }
+    cell-map
+      .at(hour - start)
+      .push({
+        let c = strfmt("{:02}", minute)
+        if e.arrival == e.departure {
+          text(fill: gray, size: .8em, weight: 600, c)
+        } else {
+          c
+        }
+      })
+  }
+  let column-count = cell-map.sorted(key: it => it.len()).last().len()
+  grid(
+    columns: (auto,) + (column-width,) * column-count,
+    rows: 1.5em,
+    inset: .2em,
+    align: center + horizon,
+    grid.hline(),
+    grid.hline(y: cell-map.len()),
+    grid.vline(),
+    grid.vline(x: 1),
+    grid.vline(x: column-count + 1),
+    ..range(end - start).map(
+      it => grid.cell(x: 0)[#strfmt("{:02}", it)],
+    ),
+    ..cell-map
+      .enumerate()
+      .map(
+        it => {
+          let (idx, cells) = it
+          cells.map(c => grid.cell(y: idx, [#c]))
+        },
+      )
+      .flatten()
   )
 }
