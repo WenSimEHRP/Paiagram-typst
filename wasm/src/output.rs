@@ -256,7 +256,7 @@ impl Output {
                 };
                 let previous_line_index = local_edges
                     .iter()
-                    .position(|(_, idx)| current_line_index.abs_diff(*idx) == 1);
+                    .position(|(_, idx)| current_line_index.abs_diff(*idx) <= 1);
                 let mut matched_edge = if ce.clear || previous_line_index.is_none() {
                     // there is no matching edge, so create a new one
                     Vec::new()
