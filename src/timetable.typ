@@ -6,7 +6,7 @@
   let minute = int(calc.rem(normalized-time, 3600) / 60)
   let c = strfmt("{:02}{:02}", hour, minute)
   if matched.arrival == matched.departure {
-    place(center + horizon, text(fill: gray, size: .8em, weight: 600, c))
+    text(fill: gray, size: .8em, weight: 600, c)
   } else {
     c
   }
@@ -84,7 +84,7 @@
     ..{
       let accumulated-row = 0
       for s in stations {
-        (grid.cell(x: 0, rowspan: if s.departure and s.arrival { 2 } else { 1 })[#s.name],)
+        (grid.cell(x: 0, rowspan: if s.departure and s.arrival { 2 } else { 1 })[#(s.name)],)
         if s.arrival {
           (grid.cell(x: 1)[到],)
           accumulated-row += 1
@@ -109,13 +109,21 @@
       )
       let schedule = v.schedule
       let prev-time = schedule.first().arrival
+      let started = false
+      let ended = false
       for s in stations {
-        let matched = schedule.find(it => it.station == s.name and it.arrival >= prev-time)
+        let matched = schedule
+          .enumerate()
+          .find(it => {
+            let (idx, it) = it
+            it.station == s.name and it.arrival >= prev-time
+          })
         if matched == none {
-          if s.arrival { (grid.cell(x: x)[-],) }
-          if s.departure { (grid.cell(x: x)[-],) }
+          if s.arrival { (grid.cell(x: x)[..],) }
+          if s.departure { (grid.cell(x: x)[..],) }
           continue
         }
+        let matched = matched.at(1)
         prev-time = matched.arrival
         if s.arrival {
           let displayed-content = format-timetable-time(matched.arrival, s, (name, v), matched)
@@ -132,7 +140,7 @@
 
 #let station(trains, station, start: 0, end: 24) = context {
   let end = end + 1
-  let column-width = measure([0000]).width
+  let column-width = measure([000]).width
   let entries = for (name, value) in trains {
     for e in value.schedule.filter(it => it.station == station) {
       ((..e, raw: (name, value)),)
