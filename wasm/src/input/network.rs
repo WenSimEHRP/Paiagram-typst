@@ -100,8 +100,10 @@ impl TryFrom<NetworkHelper> for Network {
                     // however we don't care about them being identical
                     if current_entry.arrival < previous_departure {
                         return Err(anyhow::anyhow!(
-                            "Arrival time cannot be before previous departure time for train '{}'",
-                            train_name
+                            "Arrival time cannot be before previous departure time for train '{}', current arrival: {}, previous departure: {}",
+                            train_name,
+                            current_entry.arrival,
+                            previous_departure
                         ));
                     }
                 };
