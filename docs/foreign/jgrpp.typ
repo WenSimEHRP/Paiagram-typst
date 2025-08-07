@@ -35,12 +35,31 @@ data produced by the import function by writing your own functions for the impor
 = Labels
 
 Labels in orders are ignored as they don't affect the route travelled by the vehicle.
+Nevertheless, there are plans to support adding labels as line annotations in the future.
 
-= Non-deterministic Orders
+= Deterministic vs. Non-deterministic
 
-Non-deterministic orders are orders that cannot be guaranteed to execute on a certain time.
-The state of the order is unknown until the order is executed, and the state is only
-known by the game, not by the diagramming tool.
+Deterministic orders are orders for which their state can be determined by the diagramming tool. Any normal "go-to"
+orders that doesn't involve full loading (stations) or unbunching (depots) are deterministic. Their state can be
+determined by the diagramming tool, and thus given some preconditions their departure times can be determined.
+
+#context {
+  let s = stroke(
+    paint: text.fill.transparentize(60%),
+    dash: "loosely-dashed"
+  )
+  grid(
+    columns: (1fr, auto, 1fr),
+    gutter: 1em,
+    align: center + horizon,
+    line(length: 100%, stroke: s),
+    [_Here comes the devil..._],
+    line(length: 100%, stroke: s),
+  )
+}
+
+Non-deterministic orders are orders for which their state cannot be determined by the diagramming tool.
+Their departure times cannot be determined either.
 
 For example, a train may be instructed to "wait for 5 minutes", while also ordered to "full load sugar". In this case,
 since the train is instructed to _full load_ at a station, it is impossible to determine the exact time
@@ -55,7 +74,7 @@ Here's a list of all orders/operations that are non-deterministic:
 - Full loading
 - Unbunching
 - Auto-separation
-- Conditional orders (depends on the condition)
+- Conditional orders (except for conditions that depends on the current time)
 
 These infrastructure/operations also contribute to the non-deterministic nature of vehicles:
 

@@ -9,7 +9,9 @@
   summary: [
     #prefix-chapter("./intro.typ")[Introduction]
     = User guide
-    == Importing Foreign Timetables
+    #chapter("guide/structure.typ")[Data Structure]
+    = Importing Foreign Timetables
+    #chapter("foreign/main.typ")[Foreign Timetables]
     #chapter("foreign/qetrc.typ")[qETRC/pyETRC Files]
     #chapter("foreign/jgrpp.typ")[OpenTTD JGRPP Orders Exports]
     = References
