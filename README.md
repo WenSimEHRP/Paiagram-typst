@@ -19,4 +19,4 @@ Paiagram currently supports importing data from qETRC files. Support for other f
 
 ## Showcase
 
-![Beijing-Shanghai HSR timetable diagram](https://raw.githubusercontent.com/WenSimEHRP/paiagram/e7a396d8209be025994b4f5089e53c3f22809dff/jinghu.svg)
+![Beijing-Shanghai HSR timetable diagram](https://raw.githubusercontent.com/WenSimEHRP/Paiagram-typst/28c978a0aa676dc7ca4db37f5aa84257b9b3a1c6/jinghu.svg)
